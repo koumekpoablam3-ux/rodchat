@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2B1D44" />
+    <title>Pas de connexion · Rodchat</title>
+    <style>
+      :root { color-scheme: light dark; --bg: #f3f4f9; --ink: #1b1828; --muted: #625e78; --brand: #2b1d44; --brand-ink: #fff; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #100d18; --ink: #f0eef8; --muted: #a09bb8; --brand: #8f73f0; --brand-ink: #100d18; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px;
+        background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+      main { max-width: 22rem; text-align: center; }
+      h1 { margin: 0 0 8px; font-size: 1.5rem; }
+      p { margin: 0 0 24px; color: var(--muted); line-height: 1.5; }
+      button { font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 12px 24px;
+        background: var(--brand); color: var(--brand-ink); cursor: pointer; }
+      button:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Pas de connexion</h1>
+      <p>Rodchat a besoin d'internet pour charger tes discussions. Vérifie ton réseau, puis réessaie.</p>
+      <button type="button" onclick="location.reload()">Réessayer</button>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Palette Rodchat
+  - aubergine : couleur de marque et messages envoyés
+  - safran    : accent chaud (envoi, messages non lus, double coche lue)
+  - brume     : fond de la zone de discussion, avec un motif tissé discret
+*/
+:root {
+  color-scheme: light;
+  --bg: 243 244 249;
+  --panel: 255 255 255;
+  --chat: 232 234 244;
+  --ink: 27 24 40;
+  --muted: 98 94 120;
+  --line: 221 222 235;
+  --brand: 43 29 68;
+  --brand-ink: 255 255 255;
+  --accent: 245 179 53;
+  --accent-ink: 43 29 68;
+  --bubble-in: 255 255 255;
+  --bubble-out: 43 29 68;
+  --bubble-out-ink: 255 255 255;
+  --danger: 190 40 60;
+  --wallpaper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='rgba(43,29,68,0.07)' stroke-width='1.5'%3E%3Cpath d='M32 10 L44 22 L32 34 L20 22 Z'/%3E%3Cpath d='M0 54 L8 46 L16 54 L24 46 L32 54 L40 46 L48 54 L56 46 L64 54'/%3E%3C/g%3E%3Cg fill='rgba(43,29,68,0.07)'%3E%3Ccircle cx='4' cy='12' r='1.6'/%3E%3Ccircle cx='60' cy='38' r='1.6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Thème sombre : automatique (réglage du système) sauf si la personne a choisi « clair » */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: 16 13 24;
+    --panel: 26 21 38;
+    --chat: 20 16 30;
+    --ink: 240 238 248;
+    --muted: 160 155 184;
+    --line: 48 41 68;
+    --brand: 143 115 240;
+    --brand-ink: 16 13 24;
+    --accent: 245 179 53;
+    --accent-ink: 43 29 68;
+    --bubble-in: 38 31 56;
+    --bubble-out: 67 48 122;
+    --bubble-out-ink: 255 255 255;
+    --danger: 255 130 140;
+    --wallpaper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.045)' stroke-width='1.5'%3E%3Cpath d='M32 10 L44 22 L32 34 L20 22 Z'/%3E%3Cpath d='M0 54 L8 46 L16 54 L24 46 L32 54 L40 46 L48 54 L56 46 L64 54'/%3E%3C/g%3E%3Cg fill='rgba(255,255,255,0.045)'%3E%3Ccircle cx='4' cy='12' r='1.6'/%3E%3Ccircle cx='60' cy='38' r='1.6'/%3E%3C/g%3E%3C/svg%3E");
+  }
+}
+
+/* Thème sombre choisi dans les réglages */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: 16 13 24;
+  --panel: 26 21 38;
+  --chat: 20 16 30;
+  --ink: 240 238 248;
+  --muted: 160 155 184;
+  --line: 48 41 68;
+  --brand: 143 115 240;
+  --brand-ink: 16 13 24;
+  --accent: 245 179 53;
+  --accent-ink: 43 29 68;
+  --bubble-in: 38 31 56;
+  --bubble-out: 67 48 122;
+  --bubble-out-ink: 255 255 255;
+  --danger: 255 130 140;
+  --wallpaper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.045)' stroke-width='1.5'%3E%3Cpath d='M32 10 L44 22 L32 34 L20 22 Z'/%3E%3Cpath d='M0 54 L8 46 L16 54 L24 46 L32 54 L40 46 L48 54 L56 46 L64 54'/%3E%3C/g%3E%3Cg fill='rgba(255,255,255,0.045)'%3E%3Ccircle cx='4' cy='12' r='1.6'/%3E%3Ccircle cx='60' cy='38' r='1.6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+  font-family: "Figtree Variable", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--brand));
+  outline-offset: 2px;
+}
+
+.wallpaper {
+  background-color: rgb(var(--chat));
+  background-image: var(--wallpaper);
+  background-size: 64px 64px;
+}
+
+/* Barre de défilement discrète */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line)) transparent;
+}
+
+/* Apparition des fenêtres et menus, déclenchée par une action de la personne */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.16s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
+
+/* Nom de l'expéditeur dans les groupes : teinte propre à chaque personne, lisible en clair comme en sombre */
+.sender-name {
+  color: hsl(var(--h) 55% 36%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sender-name {
+    color: hsl(var(--h) 70% 76%);
+  }
+}
+
+:root[data-theme="dark"] .sender-name {
+  color: hsl(var(--h) 70% 76%);
+}

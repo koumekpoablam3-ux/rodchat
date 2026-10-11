@@ -1,0 +1,300 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // connexion poolée Neon (-pooler)
+  directUrl = env("DIRECT_URL")   // connexion directe, utilisée par db push / migrate
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO // message vocal
+  VIDEO
+  FILE
+  CALL // entrée du journal d'appels dans la discussion
+  SYSTEM
+}
+
+enum ParticipantRole {
+  MEMBER
+  ADMIN
+}
+
+enum CallKind {
+  AUDIO
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ACTIVE
+  ENDED
+  MISSED
+  DECLINED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String?   @unique
+  phone        String?   @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  about        String?   @default("Salut ! J'utilise Rodchat.")
+  lastSeenAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  participations    Participant[]
+  messages          Message[]
+  receipts          MessageReceipt[]
+  pushSubscriptions PushSubscription[]
+  callsMade         Call[]             @relation("CallCaller")
+  callsReceived     Call[]             @relation("CallCallee")
+  reactions         Reaction[]
+  hiddenMessages    MessageHide[]
+  starredMessages   StarredMessage[]
+  connections       RealtimeConnection[]
+  // Réglages
+  theme             String             @default("auto") // auto | light | dark
+  readReceipts      Boolean            @default(true) // envoyer mes accusés de lecture
+  lastSeenVisible   Boolean            @default(true) // montrer ma dernière connexion
+}
+
+model Conversation {
+  id            String   @id @default(cuid())
+  isGroup       Boolean  @default(false)
+  name          String? // groupes uniquement
+  description   String? // groupes uniquement
+  avatarUrl     String?
+  // Messages éphémères : durée de vie des nouveaux messages, en secondes (null = désactivés)
+  disappearingSeconds Int?
+  // Lien d'invitation du groupe (null = aucun lien actif)
+  inviteToken   String?  @unique
+  // Pour un 1-à-1 : "idPetit:idGrand" -> évite les doublons de conversation
+  directKey     String?  @unique
+  createdAt     DateTime @default(now())
+  lastMessageAt DateTime @default(now())
+
+  participants Participant[]
+  messages     Message[]
+  calls        Call[]
+
+  @@index([lastMessageAt])
+}
+
+model Participant {
+  id             String          @id @default(cuid())
+  userId         String
+  conversationId String
+  role           ParticipantRole @default(MEMBER)
+  joinedAt       DateTime        @default(now())
+  lastReadAt     DateTime?
+  mutedUntil     DateTime?
+  // Réglages propres à chaque personne
+  pinnedAt       DateTime?
+  archivedAt     DateTime?
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId])
+  @@index([conversationId])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String
+  type           MessageType @default(TEXT)
+  content        String?
+  replyToId      String?
+  // Id généré côté client : permet de renvoyer un message sans créer de doublon
+  clientId       String?
+  // Renseigné pour les messages de type CALL
+  callId         String?     @unique
+  createdAt      DateTime    @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime? // supprimé pour tous : il reste une trace « message supprimé »
+  forwarded      Boolean     @default(false)
+  // Aperçu du premier lien du message (titre, description, image), ajouté après l'envoi
+  linkPreview    Json?
+  // Messages éphémères : le message disparaît à cette date
+  expiresAt      DateTime?
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?         @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]        @relation("Replies")
+  receipts     MessageReceipt[]
+  reactions    Reaction[]
+  hides        MessageHide[]
+  starredBy    StarredMessage[]
+  attachment   Attachment?
+  call         Call?            @relation(fields: [callId], references: [id], onDelete: SetNull)
+
+  @@unique([senderId, clientId])
+  @@index([conversationId, createdAt])
+  @@index([expiresAt])
+}
+
+// Une réaction par personne et par message (comme WhatsApp) : en choisir une autre remplace la première
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+// « Supprimer pour moi » : le message reste pour les autres, il est masqué pour cette personne
+model MessageHide {
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
+}
+
+// Messages favoris (étoile) : personnels à chaque personne
+model StarredMessage {
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+  @@index([userId, createdAt])
+}
+
+// Photos de profil et de groupe (petites images JPEG), stockées comme les autres fichiers
+model AvatarImage {
+  id        String   @id @default(cuid())
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
+// Fichiers, photos, vidéos et messages vocaux : le contenu est stocké dans PostgreSQL (colonne bytea).
+// Table séparée de Message pour que la lecture des discussions ne charge jamais les octets.
+model Attachment {
+  id         String   @id @default(cuid())
+  messageId  String   @unique
+  fileName   String
+  mimeType   String
+  size       Int
+  durationMs Int? // messages vocaux
+  width      Int? // images
+  height     Int?
+  data       Bytes
+  createdAt  DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+// Journal des appels audio et vidéo (le flux, lui, passe directement entre les deux appareils)
+model Call {
+  id             String     @id @default(cuid())
+  conversationId String
+  callerId       String
+  calleeId       String? // null pour un appel de groupe
+  kind           CallKind
+  status         CallStatus @default(RINGING)
+  startedAt      DateTime   @default(now())
+  answeredAt     DateTime?
+  endedAt        DateTime?
+  durationSec    Int?
+  // Appel à deux : onglet / appareil de chaque côté (le temps réel ne tient plus rien en mémoire)
+  callerConnId   String?
+  calleeConnId   String?
+
+  conversation Conversation           @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  caller       User                   @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
+  callee       User?                  @relation("CallCallee", fields: [calleeId], references: [id], onDelete: Cascade)
+  message      Message?
+  participants GroupCallParticipant[]
+
+  @@index([conversationId, startedAt])
+  @@index([status])
+}
+
+// Présents dans un appel de groupe (avant : une Map en mémoire dans server.ts)
+model GroupCallParticipant {
+  callId   String
+  userId   String
+  connId   String
+  joinedAt DateTime @default(now())
+
+  call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@id([callId, userId])
+  @@index([userId])
+}
+
+// --- Temps réel sur Vercel + Neon, sans serveur WebSocket ---
+
+// File d'événements : les routes API y écrivent, le flux /api/realtime/stream les relit et les envoie au navigateur.
+// room = "user:<id>" | "conv:<id>" | "conn:<id>". Les lignes de plus de 10 minutes sont supprimées en continu.
+model RealtimeEvent {
+  id         Int      @id @default(autoincrement())
+  room       String
+  event      String
+  payload    Json?
+  // Appareil à ne pas notifier (celui qui est à l'origine de l'événement)
+  exceptConn String?
+  createdAt  DateTime @default(now())
+
+  @@index([room, id])
+  @@index([createdAt])
+}
+
+// Un onglet / appareil connecté. beatAt est rafraîchi toutes les ~8 s par son flux : plus de signe de vie = hors ligne.
+model RealtimeConnection {
+  id     String   @id
+  userId String
+  beatAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, beatAt])
+}
+
+// Accusés par destinataire : fonctionne pour les 1-à-1 comme pour les groupes
+model MessageReceipt {
+  id          String    @id @default(cuid())
+  messageId   String
+  userId      String
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
