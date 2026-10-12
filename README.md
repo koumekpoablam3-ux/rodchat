@@ -43,6 +43,10 @@ Test sur téléphone en `http://` (réseau local) : ajoute `COOKIE_SECURE="false
 - Un fichier n'est lisible que par les membres de la discussion. Les documents sont toujours téléchargés, jamais exécutés dans le navigateur.
 - Vocaux : appuie sur le micro pour enregistrer, puis sur la flèche pour envoyer (10 minutes maximum).
 
+**Barre de navigation.** À gauche sur ordinateur (en onglets en bas sur téléphone) : *Discussions* (pastille = nombre de discussions non lues, hors archives et sourdines), *Appels*, *Statuts* (point quand il y en a de nouveaux), puis en bas *Messages favoris*, *Paramètres* et ton *profil*. L'onglet **Appels** affiche l'historique (entrants, sortants, manqués, refusés, avec la durée) et un bouton pour **rappeler** en un geste, en audio ou en vidéo ; pour un appel de groupe encore en cours, il propose de le rejoindre.
+
+**Statuts.** Le bouton en forme de cercle en pointillés (en haut de la liste) ouvre les statuts : on publie un **texte sur fond coloré** ou une **photo avec légende**, visibles **24 h** par les personnes avec qui on a une discussion à deux (hors personnes bloquées). Les statuts non vus sont signalés par une pastille ; le lecteur plein écran avance tout seul (toucher à droite/gauche pour naviguer, maintenir pour mettre en pause). L'auteur voit **qui a vu** son statut et peut le supprimer. Les statuts expirés sont supprimés automatiquement avec leurs photos (les photos comptent dans la limite de 4 Mo sur Vercel).
+
 **Blocage.** Dans « Infos du contact », *Bloquer* empêche toute nouvelle écriture et tout appel entre vous deux. La personne bloquée voit seulement « Tu ne peux pas écrire à cette personne » (on ne lui dit jamais qu'elle est bloquée) ; toi, tu vois un bandeau *Débloquer* à la place de la zone de saisie. Les anciens messages restent.
 
 **Mentions.** Dans un groupe, taper `@` propose les membres ; le message cite `@pseudo`. La personne citée reçoit une notification **même si le groupe est en sourdine**, et sa mention ressort dans le texte.

@@ -11,9 +11,11 @@ import { formatDuration, formatListDate } from "@/lib/format";
 import type { ConversationSummary } from "@/types/chat";
 import AppMenu from "./AppMenu";
 import Avatar from "./Avatar";
+import CallsPane from "./CallsPane";
 import { useChat } from "./ChatProvider";
 import ConversationRowMenu from "./ConversationRowMenu";
 import MuteDialog from "./MuteDialog";
+import NavRail, { type SidebarTab } from "./NavRail";
 import SearchHitRow from "./SearchHitRow";
 
 type LastMessage = NonNullable<ConversationSummary["lastMessage"]>;
@@ -132,6 +134,7 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
   const pathname = usePathname();
   const router = useRouter();
   const { me, conversations, onlineIds, typingByConv, setNewChatOpen, updateConversationSettings } = useChat();
+  const [tab, setTab] = useState<SidebarTab>("chats");
   const [filter, setFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -161,11 +164,13 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
 
   return (
     <aside
-      className={`${visibleOnMobile ? "flex" : "hidden"} w-full shrink-0 flex-col border-r border-line bg-panel md:flex md:w-[22rem] lg:w-[24rem]`}
+      className={`${visibleOnMobile ? "flex" : "hidden"} w-full shrink-0 flex-col border-r border-line bg-panel md:flex md:w-[26.5rem] md:flex-row lg:w-[28.5rem]`}
     >
+      <NavRail tab={tab} onTab={setTab} />
+      <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col md:order-2">
       <header className="flex items-center justify-between gap-2 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <h1 className="font-display text-[1.75rem] font-extrabold leading-none tracking-tight text-brand">
-          rodchat
+          {tab === "calls" ? "Appels" : "rodchat"}
         </h1>
         <div className="flex items-center gap-1">
           <button
@@ -180,6 +185,10 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
         </div>
       </header>
 
+      {tab === "calls" ? (
+        <CallsPane />
+      ) : (
+        <>
       <div className="px-4 pb-3">
         <label className="relative block">
           <span className="sr-only">Rechercher une discussion ou un message</span>
@@ -309,6 +318,8 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
           <p className="px-6 py-10 text-center text-sm text-muted">Aucune discussion ne correspond à « {q} ».</p>
         ) : null}
       </nav>
+        </>
+      )}
 
       {menuConversation ? (
         <ConversationRowMenu
@@ -336,6 +347,7 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
           }}
         />
       ) : null}
+      </div>
     </aside>
   );
 }

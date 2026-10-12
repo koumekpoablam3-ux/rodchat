@@ -60,6 +60,8 @@ model User {
   starredMessages   StarredMessage[]
   connections       RealtimeConnection[]
   blocksGiven       Block[]              @relation("BlockGiven")
+  statuses          Status[]
+  statusViews       StatusView[]
   blocksReceived    Block[]              @relation("BlockReceived")
   // Réglages
   theme             String             @default("auto") // auto | light | dark
@@ -323,4 +325,54 @@ model Block {
 
   @@id([blockerId, blockedId])
   @@index([blockedId])
+}
+
+// --- Statuts : texte ou photo, visibles 24 h par les personnes avec qui on a une discussion à deux ---
+
+enum StatusType {
+  TEXT
+  IMAGE
+}
+
+model Status {
+  id         String     @id @default(cuid())
+  authorId   String
+  type       StatusType
+  // Texte du statut, ou légende de la photo
+  text       String?
+  // Numéro de la couleur de fond (voir src/lib/status-palette.ts), pour les statuts texte
+  background Int        @default(0)
+  createdAt  DateTime   @default(now())
+  expiresAt  DateTime
+
+  author User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  image  StatusImage?
+  views  StatusView[]
+
+  @@index([authorId, createdAt])
+  @@index([expiresAt])
+}
+
+// Octets de la photo, à part pour ne jamais les charger dans les listes
+model StatusImage {
+  statusId String @id
+  mimeType String
+  size     Int
+  width    Int?
+  height   Int?
+  data     Bytes
+
+  status Status @relation(fields: [statusId], references: [id], onDelete: Cascade)
+}
+
+model StatusView {
+  statusId String
+  userId   String
+  viewedAt DateTime @default(now())
+
+  status Status @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([statusId, userId])
+  @@index([userId])
 }

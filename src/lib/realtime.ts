@@ -84,5 +84,6 @@ export function getRealtime(): Realtime {
 export async function purgeOldEvents() {
   await prisma.realtimeEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 10 * 60_000) } } });
   await prisma.realtimeConnection.deleteMany({ where: { beatAt: { lt: new Date(Date.now() - 60 * 60_000) } } });
+  await prisma.status.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await prisma.rateLimit.deleteMany({ where: { resetAt: { lt: new Date(Date.now() - 60 * 60_000) } } });
 }
