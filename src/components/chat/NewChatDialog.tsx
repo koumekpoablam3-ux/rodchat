@@ -23,6 +23,9 @@ function Dialog({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Brief[]>([]);
   const [searching, setSearching] = useState(false);
+  // Annuaire : toutes les personnes déjà inscrites, chargées à l'ouverture
+  const [directory, setDirectory] = useState<Brief[] | null>(null);
+  const [complete, setComplete] = useState(true);
   const [selected, setSelected] = useState<Brief[]>([]);
   const [groupName, setGroupName] = useState("");
   const [error, setError] = useState("");
@@ -38,10 +41,28 @@ function Dialog({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  // Recherche avec un léger délai pour ne pas interroger le serveur à chaque lettre
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/users")
+      .then((response) => response.json() as Promise<{ users?: Brief[]; complete?: boolean }>)
+      .then((data) => {
+        if (cancelled) return;
+        setDirectory(data.users ?? []);
+        setComplete(data.complete !== false);
+      })
+      .catch(() => {
+        if (!cancelled) setDirectory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Annuaire trop grand pour être chargé en entier : recherche côté serveur, avec un léger délai
+  // pour ne pas interroger le serveur à chaque lettre
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
+    if (complete || q.length < 2) {
       setResults([]);
       setSearching(false);
       return;
@@ -65,7 +86,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [query, complete]);
 
   async function run(action: () => Promise<string>) {
     setBusy(true);
@@ -96,6 +117,15 @@ function Dialog({ onClose }: { onClose: () => void }) {
       ),
     );
   }
+
+  const q = query.trim().toLowerCase();
+  const useServer = !complete && q.length >= 2;
+  const shown: Brief[] = useServer
+    ? results
+    : (directory ?? []).filter(
+        (user) => !q || user.displayName.toLowerCase().includes(q) || user.username.includes(q),
+      );
+  const loadingList = useServer ? searching : directory === null;
 
   const tabClass = (active: boolean) =>
     `h-10 flex-1 rounded-lg text-sm font-semibold ${
@@ -179,7 +209,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Nom ou nom d'utilisateur"
+              placeholder="Filtrer par nom ou nom d'utilisateur"
               autoComplete="off"
               className="h-11 w-full rounded-xl border border-line bg-bg px-4 placeholder:text-muted"
             />
@@ -205,19 +235,22 @@ function Dialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="scroll-thin min-h-24 flex-1 overflow-y-auto border-t border-line" aria-live="polite">
-          {query.trim().length < 2 ? (
+          {loadingList ? (
+            <p className="px-5 py-6 text-center text-sm text-muted">Chargement des personnes…</p>
+          ) : shown.length === 0 ? (
             <p className="px-5 py-6 text-center text-sm text-muted">
-              Tape au moins 2 lettres pour lancer la recherche.
-            </p>
-          ) : searching ? (
-            <p className="px-5 py-6 text-center text-sm text-muted">Recherche en cours…</p>
-          ) : results.length === 0 ? (
-            <p className="px-5 py-6 text-center text-sm text-muted">
-              Personne ne correspond à « {query.trim()} ». Vérifie l&apos;orthographe.
+              {q
+                ? `Personne ne correspond à « ${query.trim()} ». Vérifie l'orthographe.`
+                : "Personne d'autre n'est inscrit pour l'instant. Invite tes proches à créer un compte sur Rodchat."}
             </p>
           ) : (
             <ul>
-              {results.map((user) => {
+              {!q && !useServer ? (
+                <li className="px-5 pb-1 pt-3 font-display text-xs font-semibold uppercase tracking-wide text-muted">
+                  Sur Rodchat · {shown.length} personne{shown.length > 1 ? "s" : ""}
+                </li>
+              ) : null}
+              {shown.map((user) => {
                 const picked = selected.some((u) => u.id === user.id);
                 return (
                   <li key={user.id}>
@@ -238,6 +271,11 @@ function Dialog({ onClose }: { onClose: () => void }) {
                   </li>
                 );
               })}
+              {!complete && q.length < 2 ? (
+                <li className="px-5 py-3 text-center text-sm text-muted">
+                  Tape au moins 2 lettres pour chercher parmi tout le monde.
+                </li>
+              ) : null}
             </ul>
           )}
         </div>

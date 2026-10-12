@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   ArchiveRestore,
+  Ban,
   Bell,
   BellOff,
   Clock,
@@ -58,6 +59,7 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
     setMemberRole,
     removeMember,
     setGroupAvatar,
+    setBlocked,
   } = useChat();
   const conversation = conversations.find((c) => c.id === conversationId);
 
@@ -71,6 +73,7 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
   const [disappearingOpen, setDisappearingOpen] = useState(false);
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmBlock, setConfirmBlock] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -416,6 +419,50 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
           ) : null}
 
           {canEditGroup ? <GroupInvite conversationId={conversationId} /> : null}
+
+          {!isGroup && other ? (
+            <div className="border-t border-line pt-3">
+              {conversation.blockedByMe ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  className={row}
+                  onClick={() => void run(() => setBlocked(other.id, false))}
+                >
+                  <Ban size={20} aria-hidden="true" />
+                  Débloquer {other.displayName}
+                </button>
+              ) : confirmBlock ? (
+                <div className="rounded-xl bg-danger/10 p-3">
+                  <p className="text-sm font-medium">
+                    Bloquer {other.displayName} ? Vous ne pourrez plus vous écrire ni vous appeler.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmBlock(false)}
+                      className="h-11 flex-1 rounded-xl border border-line font-semibold"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void run(() => setBlocked(other.id, true)).then(() => setConfirmBlock(false))}
+                      className="h-11 flex-1 rounded-xl bg-danger font-semibold text-white disabled:opacity-60"
+                    >
+                      Bloquer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className={`${row} text-danger`} onClick={() => setConfirmBlock(true)}>
+                  <Ban size={20} aria-hidden="true" />
+                  Bloquer {other.displayName}
+                </button>
+              )}
+            </div>
+          ) : null}
 
           {isGroup ? (
             <div className="border-t border-line pt-3">

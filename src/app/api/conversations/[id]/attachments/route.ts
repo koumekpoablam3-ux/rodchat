@@ -4,7 +4,8 @@ import { matchesImageSignature } from "@/lib/image-signature";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
 import { postMessage } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { BlockedError, blockedMessage } from "@/lib/blocks";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 import type { AttachmentType } from "@/types/chat";
 
@@ -35,7 +36,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   });
   if (!member) return forbidden();
 
-  const limit = rateLimit(`upload:${userId}`, 40, 10 * 60 * 1000);
+  const limit = await rateLimitShared(`upload:${userId}`, 40, 10 * 60 * 1000);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Tu envoies beaucoup de fichiers. Patiente un peu avant de réessayer." },
@@ -89,22 +90,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const replyHeader = req.headers.get("x-reply-to");
   const replyToId = replyHeader && replyHeader.length <= 40 ? replyHeader : undefined;
 
-  const message = await postMessage({
-    senderId: userId,
-    conversationId,
-    type,
-    clientId,
-    replyToId,
-    attachment: {
-      fileName,
-      mimeType,
-      size: data.byteLength,
-      durationMs: type === "AUDIO" ? optionalInt(req.headers.get("x-duration-ms"), 3_600_000) : null,
-      width: type === "IMAGE" ? optionalInt(req.headers.get("x-width"), 20_000) : null,
-      height: type === "IMAGE" ? optionalInt(req.headers.get("x-height"), 20_000) : null,
-      data,
-    },
-  });
-
-  return NextResponse.json({ message }, { status: 201 });
+  try {
+    const message = await postMessage({
+      senderId: userId,
+      conversationId,
+      type,
+      clientId,
+      replyToId,
+      attachment: {
+        fileName,
+        mimeType,
+        size: data.byteLength,
+        durationMs: type === "AUDIO" ? optionalInt(req.headers.get("x-duration-ms"), 3_600_000) : null,
+        width: type === "IMAGE" ? optionalInt(req.headers.get("x-width"), 20_000) : null,
+        height: type === "IMAGE" ? optionalInt(req.headers.get("x-height"), 20_000) : null,
+        data,
+      },
+    });
+    return NextResponse.json({ message }, { status: 201 });
+  } catch (error) {
+    if (error instanceof BlockedError) return NextResponse.json({ error: blockedMessage(error.byMe) }, { status: 403 });
+    throw error;
+  }
 }

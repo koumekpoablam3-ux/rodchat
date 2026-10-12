@@ -59,6 +59,8 @@ model User {
   hiddenMessages    MessageHide[]
   starredMessages   StarredMessage[]
   connections       RealtimeConnection[]
+  blocksGiven       Block[]              @relation("BlockGiven")
+  blocksReceived    Block[]              @relation("BlockReceived")
   // Réglages
   theme             String             @default("auto") // auto | light | dark
   readReceipts      Boolean            @default(true) // envoyer mes accusés de lecture
@@ -121,6 +123,8 @@ model Message {
   editedAt       DateTime?
   deletedAt      DateTime? // supprimé pour tous : il reste une trace « message supprimé »
   forwarded      Boolean     @default(false)
+  // Personnes citées par « @pseudo » dans le texte (notifiées même si la discussion est en sourdine)
+  mentionedIds String[] @default([])
   // Aperçu du premier lien du message (titre, description, image), ajouté après l'envoi
   linkPreview    Json?
   // Messages éphémères : le message disparaît à cette date
@@ -297,4 +301,26 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Compteurs du limiteur de débit partagé entre toutes les fonctions Vercel (login, inscription, envois…)
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+// Blocage : blockerId ne veut plus de messages ni d'appels de blockedId
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlockGiven", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
 }

@@ -43,6 +43,10 @@ Test sur téléphone en `http://` (réseau local) : ajoute `COOKIE_SECURE="false
 - Un fichier n'est lisible que par les membres de la discussion. Les documents sont toujours téléchargés, jamais exécutés dans le navigateur.
 - Vocaux : appuie sur le micro pour enregistrer, puis sur la flèche pour envoyer (10 minutes maximum).
 
+**Blocage.** Dans « Infos du contact », *Bloquer* empêche toute nouvelle écriture et tout appel entre vous deux. La personne bloquée voit seulement « Tu ne peux pas écrire à cette personne » (on ne lui dit jamais qu'elle est bloquée) ; toi, tu vois un bandeau *Débloquer* à la place de la zone de saisie. Les anciens messages restent.
+
+**Mentions.** Dans un groupe, taper `@` propose les membres ; le message cite `@pseudo`. La personne citée reçoit une notification **même si le groupe est en sourdine**, et sa mention ressort dans le texte.
+
 **Appels audio et vidéo (WebRTC).** Le son et l'image passent directement d'un appareil à l'autre : rien n'est stocké. Le serveur ne fait que mettre les deux appareils en relation (signalisation). Seul le résultat de l'appel (durée, manqué, refusé) est enregistré dans la table `Call` et affiché dans la discussion.
 
 - Appels audio et vidéo dans les discussions à deux, et **appels de groupe** (voir plus bas).
@@ -134,13 +138,13 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
 
 **À savoir sur l'offre gratuite :**
 
-- **Neon ne s'endort plus tant que quelqu'un est connecté.** Chaque onglet ouvert interroge la base toutes les 500 ms ; sans personne de connecté, Neon se met en veille normalement. Surveille la consommation d'heures de calcul dans le tableau de bord Neon : avec quelques personnes connectées quelques heures par jour, l'offre gratuite suffit, mais un onglet laissé ouvert 24 h/24 consomme en continu. Le premier message après une longue veille met 1 à 2 s de plus (réveil de Neon).
+- **Neon ne s'endort plus tant que quelqu'un est connecté.** Chaque onglet ouvert interroge la base toutes les 500 ms ; sans personne de connecté, Neon se met en veille normalement. Les onglets cachés coupent leur flux après une minute, donc seuls les onglets réellement ouverts à l'écran comptent. Surveille quand même les heures de calcul dans le tableau de bord Neon. Le premier message après une longue veille met 1 à 2 s de plus (réveil de Neon).
 - **Durée des fonctions** : le flux SSE est limité à 60 s par fonction (compatible plan Hobby), d'où la réouverture automatique toutes les ~50 s. Elle est invisible pour la personne.
 - **Fichiers de 4 Mo maximum** : Vercel refuse les envois de plus de 4,5 Mo. La limite est réglée à 4 Mo sur Vercel (`NEXT_PUBLIC_MAX_UPLOAD_MB` pour la baisser). Les photos sont réduites avant l'envoi et les vocaux sont légers ; les vidéos et gros documents sont concernés. Pour aller au-delà, il faudrait envoyer les fichiers vers un stockage (Vercel Blob, S3…) au lieu de PostgreSQL.
-- **Onglet en arrière-plan sur mobile** : le navigateur peut couper le flux. L'appareil devient « hors ligne » après 30 s et reçoit les notifications push ; au retour dans l'app, tout se rattrape tout seul.
+- **Onglets en arrière-plan** : un onglet caché depuis plus d'une minute (et hors appel) coupe son flux : la personne passe « hors ligne », reçoit les notifications push, et Neon peut se rendormir. Au retour sur l'onglet, tout se rattrape tout seul. Pendant un appel, le flux reste ouvert.
 - **Appels** : un appel de groupe se limite à 6 personnes (maillage WebRTC). Un serveur TURN devient indispensable sur de nombreux réseaux mobiles.
 - **Service worker et push** : inchangés (HTTPS fourni par Vercel).
-- **Limiteur de débit** : il vit en mémoire de chaque fonction, donc il est approximatif sur Vercel. Pour une protection stricte, remplace-le par Redis (Upstash).
+- **Limiteur de débit** : connexion, inscription, invitations, envois de fichiers et avatars sont limités par un compteur stocké dans Neon (table `RateLimit`), valable pour toutes les instances. Les usages très fréquents (recherche, réactions, signalisation des appels) utilisent un compteur en mémoire, plus approximatif.
 - **Messages éphémères** : purgés chaque minute tant que quelqu'un est connecté, et une fois par jour par la tâche planifiée `vercel.json` (maximum du plan gratuit). Les messages expirés restent de toute façon masqués immédiatement.
 
 ## Compléments : aperçus, favoris, galerie, invitations, réglages

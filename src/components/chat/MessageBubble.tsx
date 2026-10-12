@@ -34,6 +34,9 @@ type BubbleProps = {
   tail: boolean;
   status: MessageStatus;
   meId: string;
+  /** Pseudos des membres d'un groupe (pour mettre les @mentions en valeur) et le mien */
+  mentionable?: Set<string>;
+  meUsername?: string;
   /** Dans mes favoris */
   starred?: boolean;
   /** Mis en évidence après un saut vers ce message (recherche, citation) */
@@ -109,6 +112,8 @@ export default function MessageBubble({
   tail,
   status,
   meId,
+  mentionable,
+  meUsername,
   starred = false,
   highlighted = false,
   onRetry,
@@ -239,6 +244,7 @@ export default function MessageBubble({
                   src={media.src}
                   alt={media.fileName}
                   loading="lazy"
+                  decoding="async"
                   width={media.width ?? undefined}
                   height={media.height ?? undefined}
                   className="block h-auto max-h-[22rem] w-full max-w-[17rem] bg-black/5 object-cover"
@@ -323,7 +329,7 @@ export default function MessageBubble({
           <>
             {message.linkPreview ? <LinkCard preview={message.linkPreview} mine={mine} /> : null}
             <span className="whitespace-pre-wrap break-words">
-              <Linkify text={message.content ?? ""} />
+              <Linkify text={message.content ?? ""} mentionable={mentionable} meUsername={meUsername} />
             </span>
             <span className={`float-right ml-3 mt-2 inline-flex items-center gap-1 text-[11px] leading-none ${metaTone}`}>
               {meta}

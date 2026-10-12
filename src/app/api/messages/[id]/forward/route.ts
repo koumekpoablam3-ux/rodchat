@@ -4,7 +4,8 @@ import { badRequest, forbidden, notFound, unauthorized } from "@/lib/api";
 import { MAX_FORWARD_TARGETS } from "@/lib/limits";
 import { postMessage, type AttachmentInput } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { BlockedError } from "@/lib/blocks";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 
 const FORWARDABLE_TYPES = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE"];
@@ -21,7 +22,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const userId = await getSessionUserId();
   if (!userId) return unauthorized();
 
-  if (!rateLimit(`forward:${userId}`, 30, 10 * 60 * 1000).ok) {
+  if (!(await rateLimitShared(`forward:${userId}`, 30, 10 * 60 * 1000)).ok) {
     return NextResponse.json({ error: "Tu transfères beaucoup de messages. Patiente un peu." }, { status: 429 });
   }
 
@@ -72,16 +73,27 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     : undefined;
 
+  let sent = 0;
+  let blocked = 0;
   for (const { conversationId } of memberships) {
-    await postMessage({
-      senderId: userId,
-      conversationId,
-      type: source.type,
-      content: source.content,
-      attachment,
-      forwarded: true,
-    });
+    try {
+      await postMessage({
+        senderId: userId,
+        conversationId,
+        type: source.type,
+        content: source.content,
+        attachment,
+        forwarded: true,
+      });
+      sent += 1;
+    } catch (error) {
+      if (!(error instanceof BlockedError)) throw error;
+      blocked += 1;
+    }
+  }
+  if (sent === 0 && blocked > 0) {
+    return NextResponse.json({ error: "Tu ne peux pas écrire à cette personne." }, { status: 403 });
   }
 
-  return NextResponse.json({ ok: true, count: memberships.length });
+  return NextResponse.json({ ok: true, count: sent });
 }

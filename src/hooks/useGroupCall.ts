@@ -76,6 +76,17 @@ const JOIN_ERRORS: Record<string, string> = {
 export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options) {
   const [group, setGroupState] = useState<ActiveGroupCall | null>(null);
   const [ongoing, setOngoing] = useState<Record<string, OngoingGroupCall>>({});
+  const inGroupCall = group !== null;
+
+  // Pendant un appel, le flux temps réel reste ouvert même si l'onglet passe en arrière-plan
+  useEffect(() => {
+    if (!inGroupCall) return;
+    const socket = getSocket();
+    socket.holdOpen(true);
+    return () => {
+      socket.holdOpen(false);
+    };
+  }, [inGroupCall]);
 
   const groupRef = useRef<ActiveGroupCall | null>(null);
   const ongoingRef = useRef(ongoing);

@@ -74,6 +74,8 @@ type ChatContextValue = {
   deleteMessage: (conversationId: string, messageId: string, scope: "me" | "all") => Promise<string | null>;
   reactToMessage: (conversationId: string, messageId: string, emoji: string | null) => Promise<string | null>;
   forwardMessage: (messageId: string, conversationIds: string[]) => Promise<string | null>;
+  /** Bloque ou débloque une personne (renvoie un message d'erreur, ou null si tout va bien) */
+  setBlocked: (userId: string, blocked: boolean) => Promise<string | null>;
 
   // Réglages personnels et gestion des groupes
   updateConversationSettings: (conversationId: string, patch: ConversationSettingsPatch) => Promise<string | null>;
@@ -1050,6 +1052,12 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
     [applySummary],
   );
 
+  const setBlocked = useCallback(
+    (userId: string, blocked: boolean) =>
+      callConversationRoute(`/api/users/${userId}/block`, { method: blocked ? "POST" : "DELETE" }),
+    [callConversationRoute],
+  );
+
   const updateConversationSettings = useCallback(
     (conversationId: string, patch: ConversationSettingsPatch) =>
       callConversationRoute(`/api/conversations/${conversationId}/settings`, { method: "PATCH", json: patch }),
@@ -1181,6 +1189,7 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       deleteMessage,
       reactToMessage,
       forwardMessage,
+      setBlocked,
       updateConversationSettings,
       updateGroup,
       addMembers,
@@ -1221,6 +1230,7 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       deleteMessage,
       reactToMessage,
       forwardMessage,
+      setBlocked,
       updateConversationSettings,
       updateGroup,
       addMembers,

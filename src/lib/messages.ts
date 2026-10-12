@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { background } from "./background";
+import { assertCanMessage } from "./blocks";
 import { fetchLinkPreview, firstUrl } from "./link-preview";
+import { extractMentions } from "./mentions";
 import { prisma } from "./prisma";
 import { sendPushToUsers } from "./push";
 import { getRealtime } from "./realtime";
@@ -99,7 +101,7 @@ function pushBody(message: MessageWithRelations) {
   }
 }
 
-async function notifyOffline(userIds: string[], message: MessageWithRelations) {
+async function notifyOffline(userIds: string[], message: MessageWithRelations, mention = false) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: message.conversationId },
     select: { isGroup: true, name: true },
@@ -107,9 +109,13 @@ async function notifyOffline(userIds: string[], message: MessageWithRelations) {
   const body = pushBody(message);
   await sendPushToUsers(userIds, {
     title: conversation?.isGroup ? (conversation.name ?? "Groupe") : message.sender.displayName,
-    body: conversation?.isGroup ? `${message.sender.displayName} : ${body}` : body,
+    body: mention
+      ? `${message.sender.displayName} t'a mentionné : ${body}`
+      : conversation?.isGroup
+        ? `${message.sender.displayName} : ${body}`
+        : body,
     url: `/chat/${message.conversationId}`,
-    tag: message.conversationId,
+    tag: mention ? `${message.conversationId}:mention` : message.conversationId,
   });
 }
 
@@ -146,6 +152,10 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
   const existing = await findExisting();
   if (existing) return existing;
 
+  // Discussion à deux avec une personne bloquée (ou qui m'a bloqué) : rien ne part.
+  // Les lignes d'appel et les messages système restent possibles.
+  if (!silent && type !== "SYSTEM" && type !== "CALL") await assertCanMessage(senderId, conversationId);
+
   const [others, conversation, replyTarget] = await Promise.all([
     prisma.participant.findMany({
       where: { conversationId, NOT: { userId: senderId } },
@@ -171,11 +181,25 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
   const expiresAt =
     ttl !== null && type !== "SYSTEM" && type !== "CALL" ? new Date(now.getTime() + ttl * 1000) : null;
 
+  // « @pseudo » dans un texte : on retrouve les membres cités
+  let mentionedIds: string[] = [];
+  if (type === "TEXT" && content && content.includes("@")) {
+    const handles = extractMentions(content);
+    if (handles.length > 0) {
+      const cited = await prisma.participant.findMany({
+        where: { conversationId, userId: { not: senderId }, user: { username: { in: handles } } },
+        select: { userId: true },
+      });
+      mentionedIds = cited.map((c) => c.userId);
+    }
+  }
+
   let message: MessageWithRelations;
   try {
     message = await prisma.message.create({
       data: {
         conversationId,
+        mentionedIds,
         senderId,
         type,
         content,
@@ -214,12 +238,14 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
   scheduleLinkPreview(message);
 
   if (!silent) {
-    const offline = others
-      .filter((o) => !isOnline(o.userId) && !(o.mutedUntil && o.mutedUntil > now))
+    const offlineOthers = others.filter((o) => !isOnline(o.userId));
+    // Une mention prévient même si la discussion est en sourdine
+    const mentioned = offlineOthers.filter((o) => mentionedIds.includes(o.userId)).map((o) => o.userId);
+    const regular = offlineOthers
+      .filter((o) => !mentionedIds.includes(o.userId) && !(o.mutedUntil && o.mutedUntil > now))
       .map((o) => o.userId);
-    if (offline.length > 0) {
-      background(notifyOffline(offline, message));
-    }
+    if (regular.length > 0) background(notifyOffline(regular, message));
+    if (mentioned.length > 0) background(notifyOffline(mentioned, message, true));
   }
 
   return message;

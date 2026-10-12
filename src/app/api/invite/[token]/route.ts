@@ -8,7 +8,7 @@ import {
 } from "@/lib/conversations";
 import { MAX_GROUP_MEMBERS } from "@/lib/limits";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 
 const INVALID = "Ce lien d'invitation n'est plus valide.";
@@ -53,7 +53,7 @@ export async function POST(_req: Request, { params }: { params: { token: string 
   const userId = await getSessionUserId();
   if (!userId) return unauthorized();
 
-  if (!rateLimit(`invite-join:${userId}`, 20, 10 * 60 * 1000).ok) {
+  if (!(await rateLimitShared(`invite-join:${userId}`, 20, 10 * 60 * 1000)).ok) {
     return NextResponse.json({ error: "Trop de tentatives. Patiente un peu." }, { status: 429 });
   }
 

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { sortConversations } from "./conversation-sort";
+import { blockedByMeIds } from "./blocks";
 import { postMessage, visibleMessagesWhere } from "./messages";
 import { prisma } from "./prisma";
 import { getRealtime } from "./realtime";
@@ -26,7 +27,11 @@ type ConversationRow = Prisma.ConversationGetPayload<{
   include: ReturnType<typeof conversationInclude>;
 }>;
 
-async function buildSummary(conv: ConversationRow, viewerId: string): Promise<ConversationSummary> {
+async function buildSummary(
+  conv: ConversationRow,
+  viewerId: string,
+  blockedIds: Set<string>,
+): Promise<ConversationSummary> {
   const mine = conv.participants.find((p) => p.userId === viewerId);
 
   // Sans accusés de lecture, `readAt` reste vide : « lu » veut alors dire antérieur à lastReadAt
@@ -57,6 +62,7 @@ async function buildSummary(conv: ConversationRow, viewerId: string): Promise<Co
     avatarUrl: conv.isGroup ? conv.avatarUrl : (other?.avatarUrl ?? null),
     participants: conv.participants.map((p) => ({ ...serializeUser(p.user), role: p.role })),
     otherUserId: other?.id ?? null,
+    blockedByMe: other ? blockedIds.has(other.id) : false,
     myRole: mine?.role ?? "MEMBER",
     disappearingSeconds: conv.disappearingSeconds,
     pinnedAt: mine?.pinnedAt ? mine.pinnedAt.toISOString() : null,
@@ -83,8 +89,9 @@ export async function listConversations(viewerId: string) {
     where: { participants: { some: { userId: viewerId } } },
     include: conversationInclude(viewerId),
   });
+  const blockedIds = await blockedByMeIds(viewerId);
   const summaries: ConversationSummary[] = await Promise.all(
-    rows.map((row: ConversationRow) => buildSummary(row, viewerId)),
+    rows.map((row: ConversationRow) => buildSummary(row, viewerId, blockedIds)),
   );
   return sortConversations(summaries);
 }
@@ -94,7 +101,7 @@ export async function getConversationSummary(conversationId: string, viewerId: s
     where: { id: conversationId, participants: { some: { userId: viewerId } } },
     include: conversationInclude(viewerId),
   });
-  return row ? buildSummary(row, viewerId) : null;
+  return row ? buildSummary(row, viewerId, await blockedByMeIds(viewerId)) : null;
 }
 
 export async function getOrCreateDirectConversation(userId: string, otherId: string) {

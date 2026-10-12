@@ -243,7 +243,7 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
         {conversations.length === 0 ? (
           <div className="px-6 py-10 text-center">
             <p className="font-display text-lg font-semibold">Aucune discussion pour l&apos;instant</p>
-            <p className="mt-1 text-sm text-muted">Cherche un contact par son nom pour lui écrire.</p>
+            <p className="mt-1 text-sm text-muted">Les personnes déjà inscrites sont à un clic : choisis-en une pour lui écrire.</p>
             <button
               type="button"
               onClick={() => setNewChatOpen(true)}

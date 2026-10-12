@@ -15,6 +15,8 @@ type Callback = (error: Error | null, response?: any) => void;
 /** Sans nouvelle connexion réussie au bout de ce délai, on déclare « déconnecté » (les rotations normales n'en font pas partie) */
 const LOST_AFTER_MS = 8_000;
 const RETRY_SEND_MS = 2_000;
+/** Onglet caché depuis ce délai (et hors appel) : on coupe le flux. Neon peut alors se rendormir, et les notifications push prennent le relais. */
+const HIDDEN_PAUSE_MS = 60_000;
 
 function newConnectionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -35,6 +37,9 @@ class RealtimeClient {
   private lostTimer: ReturnType<typeof setTimeout> | null = null;
   private signalQueue: Promise<unknown> = Promise.resolve();
   private bound = false;
+  private holds = 0;
+  private paused = false;
+  private pauseTimer: ReturnType<typeof setTimeout> | null = null;
 
   // --- API façon Socket.IO ---
 
@@ -66,6 +71,17 @@ class RealtimeClient {
     };
   }
 
+  /**
+   * Garde le flux ouvert même si l'onglet est en arrière-plan (appel en cours).
+   * À appeler avec true au début de l'appel et false à la fin.
+   */
+  holdOpen(on: boolean) {
+    this.holds = Math.max(0, this.holds + (on ? 1 : -1));
+    if (this.holds === 0) this.schedulePause();
+    else this.cancelPause();
+    return this;
+  }
+
   connect() {
     this.wanted = true;
     this.bindPageEvents();
@@ -75,6 +91,8 @@ class RealtimeClient {
 
   disconnect() {
     this.wanted = false;
+    this.paused = false;
+    this.cancelPause();
     this.closeSource();
     this.clearTimers();
     this.sendBye();
@@ -213,19 +231,52 @@ class RealtimeClient {
 
     // Le réseau revient, ou l'onglet est de nouveau visible : on ne laisse pas un flux mort
     const wake = () => {
-      if (this.wanted && (!this.source || this.source.readyState === EventSource.CLOSED)) {
-        this.open(!this.needFresh);
+      if (!this.wanted) return;
+      if (this.paused) {
+        // Retour après une pause : repartir de zéro, l'application rattrape ce qu'elle a manqué
+        this.paused = false;
+        this.needFresh = false;
+        this.open(false);
+        return;
       }
+      if (!this.source || this.source.readyState === EventSource.CLOSED) this.open(!this.needFresh);
     };
     window.addEventListener("online", wake);
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") wake();
+      if (document.visibilityState === "visible") {
+        this.cancelPause();
+        wake();
+      } else {
+        this.schedulePause();
+      }
     });
 
     // Vraie fermeture de l'onglet (pas une simple mise en arrière-plan) : hors ligne tout de suite
     window.addEventListener("pagehide", (event) => {
       if (!event.persisted && this.wanted) this.sendBye();
     });
+  }
+
+  private schedulePause() {
+    if (typeof document === "undefined" || this.holds > 0 || document.visibilityState !== "hidden") return;
+    if (this.pauseTimer || !this.wanted) return;
+    this.pauseTimer = setTimeout(() => {
+      this.pauseTimer = null;
+      if (!this.wanted || this.holds > 0 || document.visibilityState !== "hidden") return;
+      this.paused = true;
+      this.closeSource();
+      this.clearTimers();
+      this.sendBye();
+      if (this.connected) {
+        this.connected = false;
+        this.dispatch("disconnect", "paused");
+      }
+    }, HIDDEN_PAUSE_MS);
+  }
+
+  private cancelPause() {
+    if (this.pauseTimer) clearTimeout(this.pauseTimer);
+    this.pauseTimer = null;
   }
 
   private sendBye() {

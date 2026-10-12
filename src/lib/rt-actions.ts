@@ -1,3 +1,4 @@
+import { BlockedError, blockedMessage, blockState } from "./blocks";
 import { MAX_GROUP_CALL_PEOPLE, MAX_MESSAGE_LENGTH } from "./limits";
 import { postMessage } from "./messages";
 import { prisma } from "./prisma";
@@ -67,15 +68,20 @@ async function sendMessage(userId: string, data: Data): Promise<Ack> {
   if (text.length > MAX_MESSAGE_LENGTH) return { ok: false, error: "too_long" };
   if (!(await isMember(userId, conversationId))) return { ok: false, error: "forbidden" };
 
-  const message = await postMessage({
-    senderId: userId,
-    conversationId,
-    type: "TEXT",
-    content: text,
-    clientId,
-    replyToId,
-  });
-  return { ok: true, message };
+  try {
+    const message = await postMessage({
+      senderId: userId,
+      conversationId,
+      type: "TEXT",
+      content: text,
+      clientId,
+      replyToId,
+    });
+    return { ok: true, message };
+  } catch (error) {
+    if (error instanceof BlockedError) return { ok: false, error: blockedMessage(error.byMe) };
+    throw error;
+  }
 }
 
 async function markRead(userId: string, data: Data): Promise<Ack> {
@@ -129,6 +135,9 @@ async function startCall(userId: string, connId: string, data: Data): Promise<Ac
   });
   const calleeId = conversation?.participants.find((p) => p.userId !== userId)?.userId;
   if (!conversation || !calleeId) return { ok: false, error: "forbidden" };
+
+  const block = await blockState(userId, calleeId);
+  if (block.byMe || block.byThem) return { ok: false, error: "blocked" };
 
   await sweepCalls();
   if ((await isBusy(userId)) || (await isBusy(calleeId))) return { ok: false, error: "busy" };

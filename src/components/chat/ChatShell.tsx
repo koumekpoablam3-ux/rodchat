@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import CallProvider from "@/components/call/CallProvider";
+import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import NewChatDialog from "./NewChatDialog";
 import Sidebar from "./Sidebar";
 
@@ -10,10 +11,11 @@ import Sidebar from "./Sidebar";
 export default function ChatShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isRoot = pathname === "/chat";
+  useVisualViewportHeight();
 
   return (
     <CallProvider>
-      <div className="flex h-dvh overflow-hidden bg-bg">
+      <div className="flex h-dvh overflow-hidden bg-bg" style={{ height: "var(--app-height, 100dvh)" }}>
         <Sidebar visibleOnMobile={isRoot} />
         <main className={`${isRoot ? "hidden" : "flex"} min-w-0 flex-1 flex-col md:flex`}>{children}</main>
         <NewChatDialog />

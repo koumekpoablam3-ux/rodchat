@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FileText, ImageIcon, Mic, Paperclip, Pencil, SendHorizontal, Trash2, Video, X } from "lucide-react";
 import { useVoiceRecorder, type VoiceRecording } from "@/hooks/useVoiceRecorder";
 import { formatDuration } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
 import { MAX_MESSAGE_LENGTH } from "@/lib/limits";
+import { mentionAtCaret } from "@/lib/mentions";
 import type { ChatMessage } from "@/types/chat";
 import { useChat } from "./ChatProvider";
 import QuotedBlock from "./QuotedBlock";
@@ -32,11 +33,26 @@ export default function Composer({
   editing,
   onCancelEdit,
 }: ComposerProps) {
-  const { me, sendMessage, sendAttachment, sendTyping, editMessage } = useChat();
+  const { me, conversations, sendMessage, sendAttachment, sendTyping, editMessage } = useChat();
 
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  // « @ » en cours de frappe dans un groupe : suggestions de membres
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const conversation = conversations.find((c) => c.id === conversationId);
+  const suggestions = useMemo(() => {
+    if (!mention || !conversation?.isGroup) return [];
+    const query = mention.query.toLowerCase();
+    return conversation.participants
+      .filter(
+        (p) =>
+          p.id !== me.id && (p.username.toLowerCase().startsWith(query) || p.displayName.toLowerCase().includes(query)),
+      )
+      .slice(0, 5);
+  }, [mention, conversation, me.id]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -132,9 +148,25 @@ export default function Composer({
     }
   }
 
+  function pickMention(username: string) {
+    if (!mention) return;
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? text.length;
+    const inserted = `@${username} `;
+    setText(text.slice(0, mention.start) + inserted + text.slice(caret));
+    setMention(null);
+    const position = mention.start + inserted.length;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(position, position);
+    });
+  }
+
   function onChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = event.target.value;
     setText(value);
+    setMention(conversation?.isGroup ? mentionAtCaret(value, event.target.selectionStart) : null);
+    setMentionIndex(0);
     if (!value.trim()) return stopTyping();
 
     const state = typingState.current;
@@ -181,6 +213,24 @@ export default function Composer({
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (suggestions.length > 0 && !event.nativeEvent.isComposing) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const step = event.key === "ArrowDown" ? 1 : suggestions.length - 1;
+        setMentionIndex((index) => (index + step) % suggestions.length);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        pickMention(suggestions[Math.min(mentionIndex, suggestions.length - 1)].username);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMention(null);
+        return;
+      }
+    }
     if (event.key === "Escape" && (editing || replyTo)) {
       event.preventDefault();
       if (editing) cancelEdit();
@@ -370,17 +420,44 @@ export default function Composer({
           <label htmlFor="composer" className="sr-only">
             Écrire un message
           </label>
-          <textarea
-            id="composer"
-            ref={textareaRef}
-            rows={1}
-            value={text}
-            maxLength={MAX_MESSAGE_LENGTH}
-            onChange={onChange}
-            onKeyDown={onKeyDown}
-            placeholder={editing ? "Modifie ton message" : "Écris un message"}
-            className="max-h-36 min-h-11 flex-1 resize-none rounded-2xl border border-line bg-bg px-4 py-2.5 text-[15px] leading-snug placeholder:text-muted"
-          />
+          <div className="relative min-w-0 flex-1">
+            {suggestions.length > 0 ? (
+              <ul
+                role="listbox"
+                aria-label="Mentionner un membre"
+                className="absolute bottom-full left-0 z-20 mb-2 w-full max-w-xs overflow-hidden rounded-2xl border border-line bg-surface shadow-xl"
+              >
+                {suggestions.map((member, index) => (
+                  <li key={member.id} role="option" aria-selected={index === mentionIndex}>
+                    <button
+                      type="button"
+                      // onMouseDown : le champ garde le focus et le curseur
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        pickMention(member.username);
+                      }}
+                      className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm ${index === mentionIndex ? "bg-bg" : ""}`}
+                    >
+                      <span className="truncate font-medium">{member.displayName}</span>
+                      <span className="shrink-0 text-muted">@{member.username}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <textarea
+              id="composer"
+              ref={textareaRef}
+              rows={1}
+              value={text}
+              maxLength={MAX_MESSAGE_LENGTH}
+              onChange={onChange}
+              onKeyDown={onKeyDown}
+              onBlur={() => setMention(null)}
+              placeholder={editing ? "Modifie ton message" : "Écris un message"}
+              className="max-h-36 min-h-11 w-full resize-none rounded-2xl border border-line bg-bg px-4 py-2.5 text-[15px] leading-snug placeholder:text-muted"
+            />
+          </div>
 
           {hasText ? (
             <button

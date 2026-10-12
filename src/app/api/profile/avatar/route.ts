@@ -3,7 +3,7 @@ import { badRequest, unauthorized } from "@/lib/api";
 import { deleteAvatarByUrl, readAvatarUpload, saveAvatar } from "@/lib/avatars";
 import { broadcastUser } from "@/lib/profile";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 import { serializeUser, userSelect } from "@/lib/users";
 
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const userId = await getSessionUserId();
   if (!userId) return unauthorized();
 
-  if (!rateLimit(`avatar:${userId}`, 20, 10 * 60 * 1000).ok) {
+  if (!(await rateLimitShared(`avatar:${userId}`, 20, 10 * 60 * 1000)).ok) {
     return NextResponse.json({ error: "Patiente un peu avant de changer à nouveau ta photo." }, { status: 429 });
   }
 

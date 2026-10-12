@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { compare } from "bcryptjs";
+import { compare, hashSync } from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
 import { serializeUser, userSelect } from "@/lib/users";
+
+// Vrai hash bcrypt (coût 10) généré une fois par instance : comparé quand le compte n'existe pas,
+// pour que la réponse ne soit pas plus rapide que pour un compte existant
+const DUMMY_HASH = hashSync("rodchat-timing-equalizer", 10);
 
 const schema = z.object({
   username: z.string().trim().toLowerCase().min(1, "Indique ton nom d'utilisateur."),
@@ -19,10 +23,12 @@ export async function POST(req: Request) {
   }
   const { username, password } = parsed.data;
 
-  const limit = rateLimit(`login:${clientIp(req)}:${username}`, 8, 10 * 60 * 1000);
-  if (!limit.ok) {
+  // Limite par IP + compte, et limite par compte seul (contre un attaquant qui change d'adresse)
+  const limit = await rateLimitShared(`login:${clientIp(req)}:${username}`, 8, 10 * 60 * 1000);
+  const perAccount = await rateLimitShared(`login-user:${username}`, 40, 60 * 60 * 1000);
+  if (!limit.ok || !perAccount.ok) {
     return NextResponse.json(
-      { error: `Trop d'essais. Réessaie dans ${Math.ceil(limit.retryAfter / 60)} min.` },
+      { error: `Trop d'essais. Réessaie dans ${Math.max(1, Math.ceil(Math.max(limit.retryAfter, perAccount.retryAfter) / 60))} min.` },
       { status: 429 },
     );
   }
@@ -32,8 +38,10 @@ export async function POST(req: Request) {
     select: { ...userSelect, passwordHash: true },
   });
 
-  // Même message dans les deux cas : on ne révèle pas si le compte existe
-  if (!user || !(await compare(password, user.passwordHash))) {
+  // Même message ET même durée dans les deux cas : on ne révèle pas si le compte existe
+  const hash = user?.passwordHash ?? DUMMY_HASH;
+  const valid = await compare(password, hash);
+  if (!user || !valid) {
     return NextResponse.json(
       { error: "Nom d'utilisateur ou mot de passe incorrect." },
       { status: 401 },

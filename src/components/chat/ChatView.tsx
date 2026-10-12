@@ -58,10 +58,23 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     reactToMessage,
     starredIds,
     toggleStar,
+    setBlocked,
   } = useChat();
   const { startCall, startGroupCall, joinGroupCall, ongoingGroupCalls, activeGroupConversationId, inCall } = useCall();
 
   const conversation = conversations.find((c) => c.id === conversationId);
+
+  // Le bandeau « Reconnexion » n'apparaît que si la coupure dure : pas de clignotement à l'ouverture de la page
+  // ni au retour sur l'onglet (le flux temps réel se rouvre en une ou deux secondes)
+  const [offlineLong, setOfflineLong] = useState(false);
+  useEffect(() => {
+    if (connected) {
+      setOfflineLong(false);
+      return;
+    }
+    const timer = setTimeout(() => setOfflineLong(true), 3000);
+    return () => clearTimeout(timer);
+  }, [connected]);
   const messages = messagesByConv[conversationId] ?? NO_MESSAGES;
   const loaded = loadedByConv[conversationId] === true;
   const hasMore = hasMoreByConv[conversationId] === true;
@@ -223,6 +236,10 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const nameOf = (userId: string) =>
     conversation.participants.find((p) => p.id === userId)?.displayName ?? "Quelqu'un";
   const online = other ? onlineIds.has(other.id) : false;
+  // « @pseudo » des membres du groupe : mis en valeur dans les messages
+  const mentionable = conversation.isGroup
+    ? new Set(conversation.participants.map((p) => p.username.toLowerCase()))
+    : undefined;
 
   const typers = (typingByConv[conversationId] ?? []).filter((id) => id !== me.id);
   let subtitle = "";
@@ -401,7 +418,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       </header>
 
-      {!connected ? (
+      {offlineLong ? (
         <div
           role="status"
           className="flex items-center gap-2 bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
@@ -490,6 +507,8 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
                 key={item.key}
                 message={message}
                 meId={me.id}
+                mentionable={mentionable}
+                meUsername={me.username.toLowerCase()}
                 mine={message.senderId === me.id}
                 showSender={conversation.isGroup && message.senderId !== me.id && item.showSender}
                 senderName={message.sender?.displayName ?? nameOf(message.senderId)}
@@ -531,16 +550,29 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       ) : null}
 
-      <Composer
-        conversationId={conversationId}
-        onSent={() => {
-          stickToBottom.current = true;
-        }}
-        replyTo={replyTo}
-        onCancelReply={() => setReplyToId(null)}
-        editing={editing}
-        onCancelEdit={() => setEditingId(null)}
-      />
+      {conversation?.blockedByMe && conversation.otherUserId ? (
+        <div className="flex items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <p className="text-sm text-muted">Tu as bloqué {conversation.name}.</p>
+          <button
+            type="button"
+            onClick={() => void setBlocked(conversation.otherUserId as string, false)}
+            className="h-10 shrink-0 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-ink"
+          >
+            Débloquer
+          </button>
+        </div>
+      ) : (
+        <Composer
+          conversationId={conversationId}
+          onSent={() => {
+            stickToBottom.current = true;
+          }}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyToId(null)}
+          editing={editing}
+          onCancelEdit={() => setEditingId(null)}
+        />
+      )}
 
       {menuMessage ? (
         <MessageMenu

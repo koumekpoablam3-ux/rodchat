@@ -105,6 +105,17 @@ export default function CallProvider({ children }: { children: React.ReactNode }
 
   const [call, setCallState] = useState<ActiveCall | null>(null);
   const [notice, setNotice] = useState("");
+  const inCall = call !== null;
+
+  // Pendant un appel, le flux temps réel reste ouvert même si l'onglet passe en arrière-plan
+  useEffect(() => {
+    if (!inCall) return;
+    const socket = getSocket();
+    socket.holdOpen(true);
+    return () => {
+      socket.holdOpen(false);
+    };
+  }, [inCall]);
 
   // La référence reflète toujours l'appel courant : les gestionnaires d'événements n'ont jamais une valeur périmée
   const callRef = useRef<ActiveCall | null>(null);
@@ -266,7 +277,13 @@ export default function CallProvider({ children }: { children: React.ReactNode }
         { conversationId, kind },
         (ack?: { ok: boolean; callId?: string; error?: string }) => {
           if (!ack?.ok || !ack.callId) {
-            finish(ack?.error === "busy" ? END_NOTICE.busy : "Impossible de lancer l'appel. Réessaie.");
+            finish(
+              ack?.error === "busy"
+                ? END_NOTICE.busy
+                : ack?.error === "blocked"
+                  ? "Tu ne peux pas appeler cette personne."
+                  : "Impossible de lancer l'appel. Réessaie.",
+            );
             return;
           }
           if (!callRef.current) {

@@ -96,6 +96,8 @@ export type ChatMessage = {
   /** Messages éphémères : date de disparition */
   expiresAt: string | null;
   forwarded: boolean;
+  /** Personnes citées par « @pseudo » (absent sur les messages pas encore confirmés) */
+  mentionedIds?: string[];
   linkPreview: LinkPreview | null;
   replyTo: QuotedMessage | null;
   reactions: Reaction[];
@@ -124,6 +126,8 @@ export type ConversationSummary = {
   myRole: ParticipantRole;
   /** Durée de vie des messages en secondes (null = messages éphémères désactivés) */
   disappearingSeconds: number | null;
+  /** En 1-à-1 : j'ai bloqué l'autre personne (on n'indique jamais l'inverse) */
+  blockedByMe: boolean;
   /** Réglages personnels */
   pinnedAt: string | null;
   archivedAt: string | null;

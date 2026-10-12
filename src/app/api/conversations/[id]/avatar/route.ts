@@ -4,7 +4,7 @@ import { displayNameOf, getMembership } from "@/lib/access";
 import { deleteAvatarByUrl, readAvatarUpload, saveAvatar } from "@/lib/avatars";
 import { broadcastConversation, getConversationSummary, postSystemMessage } from "@/lib/conversations";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 
 async function requireGroupAdmin(userId: string, conversationId: string) {
@@ -23,7 +23,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const denied = await requireGroupAdmin(userId, params.id);
   if (denied) return denied;
 
-  if (!rateLimit(`avatar:${userId}`, 20, 10 * 60 * 1000).ok) {
+  if (!(await rateLimitShared(`avatar:${userId}`, 20, 10 * 60 * 1000)).ok) {
     return NextResponse.json({ error: "Patiente un peu avant de changer à nouveau la photo." }, { status: 429 });
   }
 

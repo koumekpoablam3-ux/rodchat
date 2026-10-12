@@ -3,7 +3,7 @@ import { hash } from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
 import { serializeUser, userSelect } from "@/lib/users";
 
@@ -25,7 +25,7 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const limit = rateLimit(`register:${clientIp(req)}`, 10, 60 * 60 * 1000);
+  const limit = await rateLimitShared(`register:${clientIp(req)}`, 10, 60 * 60 * 1000);
   if (!limit.ok) {
     return NextResponse.json(
       { error: `Trop de tentatives. Réessaie dans ${Math.ceil(limit.retryAfter / 60)} min.` },
