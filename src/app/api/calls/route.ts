@@ -2,20 +2,9 @@ import { NextResponse } from "next/server";
 import { unauthorized } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
+import type { CallRecord } from "@/types/calls";
 
 export const dynamic = "force-dynamic";
-
-export type CallRecord = {
-  id: string;
-  conversationId: string;
-  kind: "AUDIO" | "VIDEO";
-  status: "ENDED" | "MISSED" | "DECLINED";
-  startedAt: string;
-  durationSec: number | null;
-  callerId: string;
-  /** null = appel de groupe */
-  calleeId: string | null;
-};
 
 // Historique de mes appels terminés : ceux que j'ai passés ou reçus, et les appels de groupe de mes discussions
 export async function GET() {

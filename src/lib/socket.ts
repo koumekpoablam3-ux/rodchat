@@ -8,7 +8,6 @@
 //
 // Les composants (ChatProvider, appels…) n'ont donc presque pas changé.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type Listener = (...args: any[]) => void;
 type Callback = (error: Error | null, response?: any) => void;
 

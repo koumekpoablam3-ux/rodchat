@@ -56,7 +56,6 @@ export function isAllowedUrl(url: URL): boolean {
 }
 
 // `address` est volontairement large : Node attend une chaîne, ou une liste quand `options.all` est vrai
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LookupCallback = (error: NodeJS.ErrnoException | null, address: any, family?: number) => void;
 
 /**

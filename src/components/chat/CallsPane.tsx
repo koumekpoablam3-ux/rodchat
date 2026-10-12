@@ -6,7 +6,7 @@ import { Phone, PhoneIncoming, PhoneMissed, PhoneOff, PhoneOutgoing, Video } fro
 import { useCall } from "@/components/call/CallProvider";
 import { formatDuration, formatListDate } from "@/lib/format";
 import { getSocket } from "@/lib/socket";
-import type { CallRecord } from "@/app/api/calls/route";
+import type { CallRecord } from "@/types/calls";
 import Avatar from "./Avatar";
 import { useChat } from "./ChatProvider";
 
