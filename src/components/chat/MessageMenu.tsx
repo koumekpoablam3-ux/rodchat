@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Forward, Pencil, Reply, Share2, Star, Trash2 } from "lucide-react";
+import { Copy, Forward, Pencil, Pin, PinOff, Reply, Share2, Star, Trash2 } from "lucide-react";
 import { REACTION_EMOJIS } from "@/lib/limits";
 import type { ChatMessage } from "@/types/chat";
 
@@ -12,6 +12,8 @@ type MessageMenuProps = {
   canDeleteForAll: boolean;
   myReaction: string | null;
   starred: boolean;
+  /** Ce message est épinglé en haut de la discussion */
+  pinned: boolean;
   /** Le navigateur sait partager du texte (menu de partage du téléphone) */
   canShare: boolean;
   onClose: () => void;
@@ -20,6 +22,7 @@ type MessageMenuProps = {
   onCopy: () => void;
   onShare: () => void;
   onToggleStar: () => void;
+  onTogglePin: () => void;
   onForward: () => void;
   onEdit: () => void;
   onDelete: (scope: "me" | "all") => void;
@@ -95,6 +98,12 @@ export default function MessageMenu(props: MessageMenuProps) {
                 <button type="button" className={item} onClick={props.onToggleStar}>
                   <Star size={19} aria-hidden="true" className={props.starred ? "fill-current" : ""} />
                   {props.starred ? "Retirer des favoris" : "Ajouter aux favoris"}
+                </button>
+              ) : null}
+              {canForward ? (
+                <button type="button" className={item} onClick={props.onTogglePin}>
+                  {props.pinned ? <PinOff size={19} aria-hidden="true" /> : <Pin size={19} aria-hidden="true" />}
+                  {props.pinned ? "Désépingler" : "Épingler"}
                 </button>
               ) : null}
               {hasText && props.canShare ? (

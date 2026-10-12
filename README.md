@@ -43,6 +43,18 @@ Test sur téléphone en `http://` (réseau local) : ajoute `COOKIE_SECURE="false
 - Un fichier n'est lisible que par les membres de la discussion. Les documents sont toujours téléchargés, jamais exécutés dans le navigateur.
 - Vocaux : appuie sur le micro pour enregistrer, puis sur la flèche pour envoyer (10 minutes maximum).
 
+**Inscription sur invitation (facultatif).** Définis `INVITE_CODE` dans Vercel : l'inscription demande alors ce code (vérifié côté serveur, comparaison à durée constante). Pour inviter quelqu'un, envoie-lui le lien `https://ton-site.vercel.app/register?code=TON_CODE`, qui remplit le champ tout seul. Sans la variable, l'inscription reste ouverte à tous. Les personnes déjà inscrites ne sont pas concernées.
+
+**Messages épinglés.** Menu d'un message → *Épingler* (texte, photo, vidéo, vocal, fichier). Jusqu'à 3 messages par discussion, visibles par tous les membres dans une barre sous l'en-tête ; un toucher mène au message (et passe au suivant s'il y en a plusieurs). Une ligne « X a épinglé un message » s'ajoute dans la discussion. Au-delà de 3, le plus ancien est désépinglé.
+
+**Répondre à un statut.** Dans le lecteur de statuts, un champ « Répondre à… » envoie un message dans votre discussion à deux, avec le statut cité en haut de la bulle. Le statut se met en pause pendant que tu écris.
+
+**Glisser pour répondre.** Sur téléphone et tablette, glisse un message vers la droite pour y répondre (le défilement vertical reste libre ; un léger retour haptique confirme le geste).
+
+**Liste des discussions.** Trois filtres sous la recherche : *Toutes*, *Non lues* (avec leur nombre) et *Groupes*. Un badge **@** apparaît sur un groupe quand un message non lu te mentionne.
+
+**À l'ouverture d'une discussion.** Un séparateur « N messages non lus » s'affiche avant le premier message non lu (et la discussion s'ouvre dessus quand il y en a beaucoup). S'il y a des mentions, un bouton **@** flottant, avec leur nombre, t'y emmène une par une.
+
 **Barre de navigation.** À gauche sur ordinateur (en onglets en bas sur téléphone) : *Discussions* (pastille = nombre de discussions non lues, hors archives et sourdines), *Appels*, *Statuts* (point quand il y en a de nouveaux), puis en bas *Messages favoris*, *Paramètres* et ton *profil*. L'onglet **Appels** affiche l'historique (entrants, sortants, manqués, refusés, avec la durée) et un bouton pour **rappeler** en un geste, en audio ou en vidéo ; pour un appel de groupe encore en cours, il propose de le rejoindre.
 
 **Statuts.** Le bouton en forme de cercle en pointillés (en haut de la liste) ouvre les statuts : on publie un **texte sur fond coloré** ou une **photo avec légende**, visibles **24 h** par les personnes avec qui on a une discussion à deux (hors personnes bloquées). Les statuts non vus sont signalés par une pastille ; le lecteur plein écran avance tout seul (toucher à droite/gauche pour naviguer, maintenir pour mettre en pause). L'auteur voit **qui a vu** son statut et peut le supprimer. Les statuts expirés sont supprimés automatiquement avec leurs photos (les photos comptent dans la limite de 4 Mo sur Vercel).
@@ -133,6 +145,7 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
    | `DIRECT_URL` | chaîne directe |
    | `AUTH_SECRET` | `openssl rand -base64 32` |
    | `CRON_SECRET` | `openssl rand -hex 32` |
+   | `INVITE_CODE` | facultatif : code à connaître pour créer un compte (inscription sur invitation) |
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | facultatif, pour les notifications (`npx web-push generate-vapid-keys`) |
    | `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | facultatif, voir plus haut |
 

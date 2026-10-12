@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Archive, ArrowLeft, BellOff, Pin, Search, SquarePen } from "lucide-react";
+import { AtSign, Archive, ArrowLeft, BellOff, Pin, Search, SquarePen } from "lucide-react";
 import { useLongPress } from "@/hooks/useLongPress";
 import { useMessageSearch } from "@/hooks/useMessageSearch";
 import { isMuted } from "@/lib/conversation-sort";
@@ -112,6 +112,9 @@ function ConversationRow({ conversation, active, typing, online, meId, onOpenMen
             <span className="flex shrink-0 items-center gap-1.5 text-muted">
               {muted ? <BellOff size={14} aria-label="En sourdine" /> : null}
               {pinned ? <Pin size={14} aria-label="Épinglée" /> : null}
+              {conversation.hasUnreadMention ? (
+                <AtSign size={17} aria-label="Tu es mentionné(e)" className="text-brand" />
+              ) : null}
               {unread > 0 ? (
                 <span
                   className={`min-w-5 rounded-full px-1.5 text-center text-xs font-bold leading-5 ${
@@ -136,6 +139,7 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
   const { me, conversations, onlineIds, typingByConv, setNewChatOpen, updateConversationSettings } = useChat();
   const [tab, setTab] = useState<SidebarTab>("chats");
   const [filter, setFilter] = useState("");
+  const [chip, setChip] = useState<"all" | "unread" | "groups">("all");
   const [showArchived, setShowArchived] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [muteId, setMuteId] = useState<string | null>(null);
@@ -149,8 +153,12 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
 
   const visible = useMemo(() => {
     if (q) return conversations.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
-    return conversations.filter((c) => (showArchived ? c.archivedAt !== null : c.archivedAt === null));
-  }, [conversations, q, showArchived]);
+    const base = conversations.filter((c) => (showArchived ? c.archivedAt !== null : c.archivedAt === null));
+    if (showArchived || chip === "all") return base;
+    return base.filter((c) => (chip === "unread" ? c.unreadCount > 0 : c.isGroup));
+  }, [conversations, q, showArchived, chip]);
+
+  const unreadChats = conversations.filter((c) => c.archivedAt === null && c.unreadCount > 0).length;
 
   const menuConversation = menuId ? (conversations.find((c) => c.id === menuId) ?? null) : null;
   const muteConversation = muteId ? (conversations.find((c) => c.id === muteId) ?? null) : null;
@@ -206,6 +214,32 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
           />
         </label>
       </div>
+
+      {!q && !showArchived && conversations.length > 0 ? (
+        <div role="group" aria-label="Filtrer les discussions" className="flex gap-2 px-4 pb-3">
+          {(
+            [
+              ["all", "Toutes"],
+              ["unread", unreadChats > 0 ? `Non lues ${unreadChats}` : "Non lues"],
+              ["groups", "Groupes"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={chip === value}
+              onClick={() => setChip(value)}
+              className={`h-9 rounded-full border px-3.5 text-sm font-semibold transition-colors ${
+                chip === value
+                  ? "border-brand bg-brand/10 text-brand"
+                  : "border-line text-muted hover:bg-bg"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {notice ? (
         <p role="alert" className="mx-4 mb-2 rounded-xl bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
@@ -263,7 +297,13 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
           </div>
         ) : visible.length === 0 && !q ? (
           <p className="px-6 py-10 text-center text-sm text-muted">
-            {showArchived ? "Aucune discussion archivée." : "Toutes tes discussions sont archivées."}
+            {showArchived
+              ? "Aucune discussion archivée."
+              : chip === "unread"
+                ? "Aucune discussion non lue. Tu es à jour !"
+                : chip === "groups"
+                  ? "Tu n'es dans aucun groupe pour l'instant."
+                  : "Toutes tes discussions sont archivées."}
           </p>
         ) : (
           <ul>

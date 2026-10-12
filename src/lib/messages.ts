@@ -80,6 +80,8 @@ export type PostMessageInput = {
   replyToId?: string | null;
   /** Message transféré depuis une autre discussion */
   forwarded?: boolean;
+  /** Réponse à un statut : extrait du statut cité */
+  statusQuote?: string | null;
 };
 
 function pushBody(message: MessageWithRelations) {
@@ -136,6 +138,7 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
     silent,
     replyToId,
     forwarded = false,
+    statusQuote = null,
   } = input;
 
   const realtime = getRealtime();
@@ -200,6 +203,7 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
       data: {
         conversationId,
         mentionedIds,
+        statusQuote,
         senderId,
         type,
         content,

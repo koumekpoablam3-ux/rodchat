@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "@/lib/api";
+import { inviteMatches } from "@/lib/invite";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
@@ -22,6 +23,7 @@ const schema = z.object({
     .string()
     .min(8, "Le mot de passe doit faire au moins 8 caractères.")
     .max(72, "Le mot de passe est trop long (72 caractères maximum)."),
+  inviteCode: z.string().max(100).optional(),
 });
 
 export async function POST(req: Request) {
@@ -37,7 +39,12 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
-  const { username, displayName, password } = parsed.data;
+  const { username, displayName, password, inviteCode } = parsed.data;
+
+  // Inscription sur invitation : sans le bon code, rien ne se passe (vérifié avant tout le reste)
+  if (!inviteMatches(inviteCode)) {
+    return NextResponse.json({ error: "Code d'invitation incorrect." }, { status: 403 });
+  }
 
   const taken = { error: "Ce nom d'utilisateur est déjà pris. Essaie-en un autre." };
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Trash2, X } from "lucide-react";
+import { Eye, Send, Trash2, X } from "lucide-react";
+import { getSocket } from "@/lib/socket";
 import { STATUS_BACKGROUNDS } from "@/lib/status-palette";
 import type { StatusAuthor, StatusItem, StatusViewer as Viewer } from "@/types/status";
 import Avatar from "../chat/Avatar";
+import { useChat } from "../chat/ChatProvider";
 import { statusTime } from "./time";
 
 export type ViewerGroup = { user: StatusAuthor; items: StatusItem[]; mine: boolean };
@@ -33,10 +35,16 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
   const [viewers, setViewers] = useState<Viewer[] | null>(null);
   const [error, setError] = useState("");
   const holdStart = useRef(0);
+  const { conversations } = useChat();
+  const [reply, setReply] = useState("");
+  const [replyFocused, setReplyFocused] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [replyNote, setReplyNote] = useState("");
 
   const group = groups[groupIndex];
   const item = group?.items[itemIndex];
-  const paused = holding || sheet !== null;
+  // En pause pendant la lecture d'un menu, un appui maintenu, ou l'écriture d'une réponse
+  const paused = holding || sheet !== null || replyFocused;
 
   const goNext = useCallback(() => {
     setProgress(0);
@@ -101,6 +109,8 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // En train d'écrire une réponse : les flèches déplacent le curseur, elles ne changent pas de statut
+      if ((event.target as HTMLElement | null)?.tagName === "INPUT" && event.key !== "Escape") return;
       if (event.key === "Escape") return sheet ? setSheet(null) : onClose();
       if (event.key === "ArrowRight") goNext();
       if (event.key === "ArrowLeft") goPrevious();
@@ -108,6 +118,37 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [goNext, goPrevious, onClose, sheet]);
+
+  function sendReply(event: React.FormEvent) {
+    event.preventDefault();
+    const text = reply.trim();
+    if (!text || sending || !item || !group || group.mine) return;
+
+    // Réponse = message dans la discussion à deux avec l'auteur du statut
+    const conversation = conversations.find((c) => !c.isGroup && c.otherUserId === group.user.id);
+    if (!conversation) return setReplyNote("Aucune discussion avec cette personne.");
+
+    setSending(true);
+    setReplyNote("");
+    getSocket()
+      .timeout(15_000)
+      .emit(
+        "message:send",
+        { conversationId: conversation.id, content: text, clientId: crypto.randomUUID(), statusId: item.id },
+        (error: Error | null, ack?: { ok?: boolean; error?: string }) => {
+          setSending(false);
+          if (error || !ack?.ok) {
+            setReplyNote(ack?.error ?? "Envoi impossible. Réessaie.");
+            return;
+          }
+          setReply("");
+          setReplyFocused(false);
+          (document.activeElement as HTMLElement | null)?.blur();
+          setReplyNote("Réponse envoyée");
+          setTimeout(() => setReplyNote(""), 2500);
+        },
+      );
+  }
 
   async function remove() {
     if (!itemId) return;
@@ -146,7 +187,8 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
       role="dialog"
       aria-modal="true"
       aria-label={`Statut de ${group.user.displayName}`}
-      className="fixed inset-0 z-[60] flex select-none flex-col bg-black text-white"
+      className="fixed inset-x-0 top-0 z-[60] flex select-none flex-col bg-black text-white"
+      style={{ height: "var(--app-height, 100dvh)" }}
     >
       {/* Média */}
       <div
@@ -229,7 +271,36 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
           </button>
         </div>
       ) : (
-        <div className="relative pb-[env(safe-area-inset-bottom)]" />
+        <form
+          onSubmit={sendReply}
+          className="relative bg-black/50 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3"
+        >
+          {replyNote ? (
+            <p role="status" className="mb-2 text-center text-xs font-medium text-white/80">
+              {replyNote}
+            </p>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <input
+              value={reply}
+              maxLength={2000}
+              onChange={(event) => setReply(event.target.value)}
+              onFocus={() => setReplyFocused(true)}
+              onBlur={() => setReplyFocused(false)}
+              placeholder={`Répondre à ${group.user.displayName.split(" ")[0]}…`}
+              aria-label="Répondre à ce statut"
+              className="h-11 min-w-0 flex-1 rounded-full bg-white/15 px-4 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+            />
+            <button
+              type="submit"
+              disabled={!reply.trim() || sending}
+              aria-label="Envoyer la réponse"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-brand-ink disabled:opacity-40"
+            >
+              <Send size={18} />
+            </button>
+          </div>
+        </form>
       )}
 
       {/* Feuilles du bas */}

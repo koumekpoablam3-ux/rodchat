@@ -6,6 +6,8 @@ import {
   Check,
   CheckCheck,
   CircleAlert,
+  CircleDashed,
+  Reply,
   Clock,
   Download,
   FileText,
@@ -14,6 +16,7 @@ import {
   Star,
 } from "lucide-react";
 import { useLongPress } from "@/hooks/useLongPress";
+import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { formatBytes, formatTime } from "@/lib/format";
 import type { MessageStatus } from "@/lib/message-status";
 import { hueFromId } from "@/lib/utils";
@@ -46,6 +49,8 @@ type BubbleProps = {
   onOpenMenu?: () => void;
   onReplyClick?: (messageId: string) => void;
   onReact?: (emoji: string) => void;
+  /** Glisser le message vers la droite pour y répondre (absent : le geste est désactivé) */
+  onSwipeReply?: () => void;
 };
 
 const STATUS_LABEL: Record<MessageStatus, string> = {
@@ -121,6 +126,7 @@ export default function MessageBubble({
   onOpenMenu,
   onReplyClick,
   onReact,
+  onSwipeReply,
 }: BubbleProps) {
   const [viewing, setViewing] = useState(false);
   const isDeleted = message.deletedAt !== null;
@@ -129,6 +135,7 @@ export default function MessageBubble({
   const press = useLongPress(() => {
     if (canOpenMenu) onOpenMenu?.();
   });
+  const swipe = useSwipeToReply(onSwipeReply && !isDeleted && !message.localStatus ? onSwipeReply : undefined);
 
   // Réactions regroupées par emoji
   const reactionGroups = new Map<string, { count: number; mine: boolean }>();
@@ -163,10 +170,21 @@ export default function MessageBubble({
   return (
     <div
       id={`msg-${message.id}`}
-      className={`group flex flex-col ${mine ? "items-end" : "items-start"} ${tail ? "mb-2" : "mb-0.5"} ${
+      {...swipe.handlers}
+      style={swipe.style}
+      className={`group relative flex flex-col ${mine ? "items-end" : "items-start"} ${tail ? "mb-2" : "mb-0.5"} ${
         highlighted ? "rounded-2xl bg-accent/25 transition-colors" : ""
       }`}
     >
+      {swipe.progress > 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute -left-10 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-panel text-brand shadow"
+          style={{ opacity: swipe.progress, transform: `translateY(-50%) scale(${0.6 + swipe.progress * 0.4})` }}
+        >
+          <Reply size={16} />
+        </span>
+      ) : null}
       <div
         style={style}
         {...(canOpenMenu ? press : {})}
@@ -199,6 +217,20 @@ export default function MessageBubble({
             <Forward size={13} aria-hidden="true" />
             Transféré
           </p>
+        ) : null}
+
+        {message.statusQuote && !isDeleted ? (
+          <div
+            className={`mb-1 rounded-lg border-l-4 px-2.5 py-1.5 text-[13px] ${
+              mine ? "border-bubble-out-ink/50 bg-black/10" : "border-brand bg-black/5 dark:bg-white/10"
+            }`}
+          >
+            <p className={`flex items-center gap-1 text-xs font-semibold ${mine ? "text-bubble-out-ink/80" : "text-brand"}`}>
+              <CircleDashed size={12} aria-hidden="true" />
+              Statut
+            </p>
+            <p className="line-clamp-3 whitespace-pre-wrap break-words">{message.statusQuote}</p>
+          </div>
         ) : null}
 
         {message.replyTo && !isDeleted ? (

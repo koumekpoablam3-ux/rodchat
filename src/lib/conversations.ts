@@ -5,7 +5,7 @@ import { postMessage, visibleMessagesWhere } from "./messages";
 import { prisma } from "./prisma";
 import { getRealtime } from "./realtime";
 import { serializeUser, userSelect } from "./users";
-import type { ConversationSummary } from "../types/chat";
+import type { PinnedMessage, ConversationSummary } from "../types/chat";
 
 // Le dernier message affiché dépend de la personne : on ne montre pas ce qu'elle a supprimé pour elle
 function conversationInclude(viewerId: string) {
@@ -27,10 +27,64 @@ type ConversationRow = Prisma.ConversationGetPayload<{
   include: ReturnType<typeof conversationInclude>;
 }>;
 
+function pinnedPreview(message: { type: string; content: string | null; attachment: { fileName: string } | null }) {
+  switch (message.type) {
+    case "TEXT":
+      return (message.content ?? "").slice(0, 100);
+    case "IMAGE":
+      return "Photo";
+    case "VIDEO":
+      return "Vidéo";
+    case "AUDIO":
+      return "Message vocal";
+    case "FILE":
+      return message.attachment?.fileName ?? "Document";
+    default:
+      return "";
+  }
+}
+
+/** Messages épinglés de plusieurs discussions, en une seule requête (ceux que la personne peut voir) */
+async function pinnedByConversation(conversationIds: string[], viewerId: string) {
+  const byConversation = new Map<string, PinnedMessage[]>();
+  if (conversationIds.length === 0) return byConversation;
+
+  const rows = await prisma.message.findMany({
+    where: {
+      AND: [
+        { conversationId: { in: conversationIds }, pinnedAt: { not: null }, deletedAt: null },
+        visibleMessagesWhere(viewerId),
+      ],
+    },
+    orderBy: { pinnedAt: "desc" },
+    select: {
+      id: true,
+      conversationId: true,
+      type: true,
+      content: true,
+      pinnedAt: true,
+      sender: { select: { displayName: true } },
+      attachment: { select: { fileName: true } },
+    },
+  });
+  for (const row of rows) {
+    const list = byConversation.get(row.conversationId) ?? [];
+    list.push({
+      id: row.id,
+      preview: pinnedPreview(row),
+      senderName: row.sender.displayName,
+      pinnedAt: (row.pinnedAt as Date).toISOString(),
+    });
+    byConversation.set(row.conversationId, list);
+  }
+  return byConversation;
+}
+
 async function buildSummary(
   conv: ConversationRow,
   viewerId: string,
   blockedIds: Set<string>,
+  pinnedMessages: PinnedMessage[],
 ): Promise<ConversationSummary> {
   const mine = conv.participants.find((p) => p.userId === viewerId);
 
@@ -48,6 +102,25 @@ async function buildSummary(
       },
     },
   });
+
+  // Groupe avec des messages non lus : l'un d'eux me cite-t-il ? (badge « @ » dans la liste)
+  const hasUnreadMention =
+    conv.isGroup && unreadCount > 0
+      ? (await prisma.messageReceipt.count({
+          where: {
+            userId: viewerId,
+            readAt: null,
+            message: {
+              AND: [
+                { conversationId: conv.id, deletedAt: null, mentionedIds: { has: viewerId } },
+                visibleMessagesWhere(viewerId),
+                ...(mine?.lastReadAt ? [{ createdAt: { gt: mine.lastReadAt } }] : []),
+              ],
+            },
+          },
+          take: 1,
+        })) > 0
+      : false;
 
   const other = conv.isGroup
     ? null
@@ -69,6 +142,8 @@ async function buildSummary(
     archivedAt: mine?.archivedAt ? mine.archivedAt.toISOString() : null,
     mutedUntil: mine?.mutedUntil ? mine.mutedUntil.toISOString() : null,
     unreadCount,
+    hasUnreadMention,
+    pinnedMessages,
     lastMessage: last
       ? {
           content: last.deletedAt ? null : last.content,
@@ -90,8 +165,9 @@ export async function listConversations(viewerId: string) {
     include: conversationInclude(viewerId),
   });
   const blockedIds = await blockedByMeIds(viewerId);
+  const pinned = await pinnedByConversation(rows.map((row) => row.id), viewerId);
   const summaries: ConversationSummary[] = await Promise.all(
-    rows.map((row: ConversationRow) => buildSummary(row, viewerId, blockedIds)),
+    rows.map((row: ConversationRow) => buildSummary(row, viewerId, blockedIds, pinned.get(row.id) ?? [])),
   );
   return sortConversations(summaries);
 }
@@ -101,7 +177,9 @@ export async function getConversationSummary(conversationId: string, viewerId: s
     where: { id: conversationId, participants: { some: { userId: viewerId } } },
     include: conversationInclude(viewerId),
   });
-  return row ? buildSummary(row, viewerId, await blockedByMeIds(viewerId)) : null;
+  if (!row) return null;
+  const pinned = await pinnedByConversation([row.id], viewerId);
+  return buildSummary(row, viewerId, await blockedByMeIds(viewerId), pinned.get(row.id) ?? []);
 }
 
 export async function getOrCreateDirectConversation(userId: string, otherId: string) {

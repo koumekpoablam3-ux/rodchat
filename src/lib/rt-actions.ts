@@ -1,6 +1,7 @@
 import { BlockedError, blockedMessage, blockState } from "./blocks";
 import { MAX_GROUP_CALL_PEOPLE, MAX_MESSAGE_LENGTH } from "./limits";
 import { postMessage } from "./messages";
+import { canSeeStatusesOf } from "./statuses";
 import { prisma } from "./prisma";
 import { getRealtime } from "./realtime";
 import {
@@ -68,6 +69,26 @@ async function sendMessage(userId: string, data: Data): Promise<Ack> {
   if (text.length > MAX_MESSAGE_LENGTH) return { ok: false, error: "too_long" };
   if (!(await isMember(userId, conversationId))) return { ok: false, error: "forbidden" };
 
+  // Réponse à un statut : on retrouve le statut (visible par moi, et de la personne de cette discussion)
+  let statusQuote: string | null = null;
+  const statusId = str(data.statusId, 40);
+  if (statusId) {
+    const status = await prisma.status.findFirst({
+      where: { id: statusId, expiresAt: { gt: new Date() } },
+      select: { authorId: true, type: true, text: true },
+    });
+    const direct = status
+      ? await prisma.conversation.findFirst({
+          where: { id: conversationId, isGroup: false, participants: { some: { userId: status.authorId } } },
+          select: { id: true },
+        })
+      : null;
+    if (!status || !direct || !(await canSeeStatusesOf(userId, status.authorId))) {
+      return { ok: false, error: "Ce statut n'est plus disponible." };
+    }
+    statusQuote = (status.text?.trim().slice(0, 120) || (status.type === "IMAGE" ? "Photo" : "Statut")).replace(/\s+/g, " ");
+  }
+
   try {
     const message = await postMessage({
       senderId: userId,
@@ -76,6 +97,7 @@ async function sendMessage(userId: string, data: Data): Promise<Ack> {
       content: text,
       clientId,
       replyToId,
+      statusQuote,
     });
     return { ok: true, message };
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowLeft, Clock, LoaderCircle, Phone, Search, Video, WifiOff } from "lucide-react";
+import { ArrowDown, ArrowLeft, AtSign, Clock, Pin, LoaderCircle, Phone, Search, Video, WifiOff } from "lucide-react";
 import { useCall } from "@/components/call/CallProvider";
 import { formatDayLabel, formatLastSeen } from "@/lib/format";
 import { DELETE_FOR_ALL_WINDOW_MS, EDIT_WINDOW_MS, disappearingLabel } from "@/lib/limits";
@@ -21,6 +21,7 @@ import SystemRow from "./SystemRow";
 
 type Item =
   | { kind: "day"; key: string; label: string }
+  | { kind: "unread"; key: string; count: number }
   | { kind: "message"; key: string; message: ChatMessage; showSender: boolean; tail: boolean };
 
 const NO_MESSAGES: ChatMessage[] = [];
@@ -58,6 +59,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     reactToMessage,
     starredIds,
     toggleStar,
+    pinMessage,
     setBlocked,
   } = useChat();
   const { startCall, startGroupCall, joinGroupCall, ongoingGroupCalls, activeGroupConversationId, inCall } = useCall();
@@ -80,6 +82,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const hasMore = hasMoreByConv[conversationId] === true;
   const hasNewer = hasNewerByConv[conversationId] === true;
   const unread = conversation?.unreadCount ?? 0;
+  const pinnedMessages = conversation?.pinnedMessages ?? [];
   const groupCall = ongoingGroupCalls[conversationId];
 
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -92,6 +95,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const [focusId, setFocusId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  const [pinIndex, setPinIndex] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -102,6 +106,32 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Nombre de messages non lus au moment de l'ouverture (lu avant que la discussion soit marquée comme lue)
+  const openedUnread = useRef<{ id: string; count: number } | null>(null);
+  if (openedUnread.current?.id !== conversationId) openedUnread.current = { id: conversationId, count: unread };
+
+  // Premier message non lu : le séparateur « N messages non lus » s'affiche juste avant
+  const [unreadAnchor, setUnreadAnchor] = useState<{ conversationId: string; id: string; count: number } | null>(null);
+  const [seenMentions, setSeenMentions] = useState<Set<string>>(() => new Set());
+  const anchoredFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!loaded || anchoredFor.current === conversationId) return;
+    anchoredFor.current = conversationId;
+    const count = openedUnread.current?.id === conversationId ? openedUnread.current.count : 0;
+    setSeenMentions(new Set());
+    if (count === 0) return setUnreadAnchor(null);
+
+    const incoming = messagesRef.current.filter(
+      (m) => m.senderId !== me.id && m.type !== "SYSTEM" && m.type !== "CALL",
+    );
+    const first = incoming[Math.max(0, incoming.length - count)];
+    if (!first) return setUnreadAnchor(null);
+    setUnreadAnchor({ conversationId, id: first.id, count });
+    // Beaucoup de non lus : on arrive sur le premier ; sinon on reste en bas
+    if (count > 8 && !focusMessageId) setFocusId(first.id);
+  }, [loaded, conversationId, me.id, focusMessageId]);
 
   // Cette discussion devient la discussion active, et on charge ses messages
   // (ceux d'autour du message demandé si on arrive d'une recherche)
@@ -200,6 +230,10 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         });
       }
 
+      if (unreadAnchor && unreadAnchor.conversationId === conversationId && message.id === unreadAnchor.id) {
+        result.push({ kind: "unread", key: "unread-divider", count: unreadAnchor.count });
+      }
+
       const next = messages[index + 1];
       const sameSenderAsPrevious =
         !newDay && previous?.senderId === message.senderId && !isInfoRow(previous);
@@ -216,7 +250,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
       previous = message;
     });
     return result;
-  }, [messages]);
+  }, [messages, unreadAnchor, conversationId]);
 
   if (!conversation) {
     return (
@@ -240,6 +274,18 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const mentionable = conversation.isGroup
     ? new Set(conversation.participants.map((p) => p.username.toLowerCase()))
     : undefined;
+
+  // Messages qui me citent, à partir du premier non lu : le bouton « @ » y mène un par un
+  const anchorIndex =
+    unreadAnchor && unreadAnchor.conversationId === conversationId
+      ? messages.findIndex((m) => m.id === unreadAnchor.id)
+      : -1;
+  const mentionTargets =
+    anchorIndex >= 0
+      ? messages
+          .slice(anchorIndex)
+          .filter((m) => m.senderId !== me.id && (m.mentionedIds ?? []).includes(me.id) && !seenMentions.has(m.id))
+      : [];
 
   const typers = (typingByConv[conversationId] ?? []).filter((id) => id !== me.id);
   let subtitle = "";
@@ -326,6 +372,13 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   async function star(message: ChatMessage) {
     closeMenu();
     const problem = await toggleStar(message.id);
+    if (problem) setToast(problem);
+  }
+
+  async function togglePin(message: ChatMessage) {
+    closeMenu();
+    const pinned = pinnedMessages.some((p) => p.id === message.id);
+    const problem = await pinMessage(message.id, !pinned);
     if (problem) setToast(problem);
   }
 
@@ -418,6 +471,30 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       </header>
 
+      {pinnedMessages.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => {
+            const target = pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)];
+            setPinIndex((pinIndex + 1) % pinnedMessages.length);
+            void goToMessage(target.id);
+          }}
+          aria-label={`Message épinglé : ${pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)].preview}. Aller au message.`}
+          className="flex w-full items-center gap-3 border-b border-line bg-panel px-4 py-2 text-left hover:bg-bg"
+        >
+          <Pin size={16} aria-hidden="true" className="shrink-0 text-brand" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold text-brand">
+              Message épinglé{pinnedMessages.length > 1 ? ` · ${Math.min(pinIndex, pinnedMessages.length - 1) + 1}/${pinnedMessages.length}` : ""}
+            </span>
+            <span className="block truncate text-sm">
+              <span className="font-medium">{pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)].senderName.split(" ")[0]} : </span>
+              {pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)].preview}
+            </span>
+          </span>
+        </button>
+      ) : null}
+
       {offlineLong ? (
         <div
           role="status"
@@ -494,6 +571,15 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
                 </div>
               );
             }
+            if (item.kind === "unread") {
+              return (
+                <div key={item.key} role="separator" className="my-3 flex justify-center">
+                  <span className="rounded-full bg-panel px-4 py-1 text-xs font-semibold text-brand shadow-sm">
+                    {item.count} message{item.count > 1 ? "s" : ""} non lu{item.count > 1 ? "s" : ""}
+                  </span>
+                </div>
+              );
+            }
             if (item.message.type === "CALL") {
               return <CallLogRow key={item.key} message={item.message} meId={me.id} />;
             }
@@ -520,6 +606,14 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
                 onDiscard={clientId ? () => discardMessage(conversationId, clientId) : undefined}
                 onOpenMenu={() => setMenuId(message.id)}
                 onReplyClick={(id) => void goToMessage(id)}
+                onSwipeReply={
+                  conversation.blockedByMe
+                    ? undefined
+                    : () => {
+                        setEditingId(null);
+                        setReplyToId(message.id);
+                      }
+                }
                 onReact={(emoji) => void react(message.id, emoji)}
               />
             );
@@ -537,6 +631,29 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           >
             <ArrowDown size={16} aria-hidden="true" />
             Derniers messages
+          </button>
+        </div>
+      ) : null}
+
+      {mentionTargets.length > 0 ? (
+        <div className="pointer-events-none absolute bottom-24 right-4 z-20">
+          <button
+            type="button"
+            aria-label={`Aller à la prochaine mention, ${mentionTargets.length} en tout`}
+            onClick={() => {
+              const target = mentionTargets[0];
+              setSeenMentions((previous) => new Set(previous).add(target.id));
+              void goToMessage(target.id);
+            }}
+            className="pointer-events-auto relative inline-flex h-12 w-12 items-center justify-center rounded-full bg-panel text-brand shadow-lg ring-1 ring-line"
+          >
+            <AtSign size={22} aria-hidden="true" />
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 min-w-5 rounded-full bg-accent px-1 text-center text-xs font-bold leading-5 text-accent-ink"
+            >
+              {mentionTargets.length}
+            </span>
           </button>
         </div>
       ) : null}
@@ -589,6 +706,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           }
           myReaction={menuMessage.reactions.find((r) => r.userId === me.id)?.emoji ?? null}
           starred={starredIds.has(menuMessage.id)}
+          pinned={pinnedMessages.some((p) => p.id === menuMessage.id)}
           canShare={typeof navigator !== "undefined" && typeof navigator.share === "function"}
           onClose={closeMenu}
           onReact={(emoji) => {
@@ -603,6 +721,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           onCopy={() => void copyText(menuMessage)}
           onShare={() => void shareText(menuMessage)}
           onToggleStar={() => void star(menuMessage)}
+          onTogglePin={() => void togglePin(menuMessage)}
           onForward={() => {
             closeMenu();
             setForwardId(menuMessage.id);

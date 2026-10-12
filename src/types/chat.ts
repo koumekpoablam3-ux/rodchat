@@ -98,6 +98,8 @@ export type ChatMessage = {
   forwarded: boolean;
   /** Personnes citées par « @pseudo » (absent sur les messages pas encore confirmés) */
   mentionedIds?: string[];
+  /** Réponse à un statut : extrait du statut cité */
+  statusQuote?: string | null;
   linkPreview: LinkPreview | null;
   replyTo: QuotedMessage | null;
   reactions: Reaction[];
@@ -109,6 +111,15 @@ export type ChatMessage = {
   localStatus?: "pending" | "failed";
   localError?: string;
   upload?: LocalUpload;
+};
+
+/** Message épinglé, tel qu'il apparaît dans la barre en haut de la discussion */
+export type PinnedMessage = {
+  id: string;
+  /** Extrait lisible : le texte, ou « Photo », « Message vocal »… */
+  preview: string;
+  senderName: string;
+  pinnedAt: string;
 };
 
 export type ConversationSummary = {
@@ -128,6 +139,10 @@ export type ConversationSummary = {
   disappearingSeconds: number | null;
   /** En 1-à-1 : j'ai bloqué l'autre personne (on n'indique jamais l'inverse) */
   blockedByMe: boolean;
+  /** Groupe : un message non lu me cite par « @pseudo » */
+  hasUnreadMention: boolean;
+  /** Messages épinglés, le plus récemment épinglé en premier */
+  pinnedMessages: PinnedMessage[];
   /** Réglages personnels */
   pinnedAt: string | null;
   archivedAt: string | null;

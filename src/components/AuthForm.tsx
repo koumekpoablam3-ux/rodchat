@@ -16,17 +16,21 @@ function nextPath() {
   return safe && (next.startsWith("/chat") || next.startsWith("/join/")) ? next : "/chat";
 }
 
-export default function AuthForm({ mode }: { mode: Mode }) {
+export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode; inviteRequired?: boolean }) {
   const router = useRouter();
   // On garde la page demandée en passant de la connexion à l'inscription
   const [nextQuery, setNextQuery] = useState("");
   useEffect(() => {
     const next = new URLSearchParams(window.location.search).get("next");
     setNextQuery(next ? `?next=${encodeURIComponent(next)}` : "");
+    // Lien d'invitation : /register?code=XXXX remplit le champ tout seul
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) setInviteCode(code);
   }, []);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -40,7 +44,9 @@ export default function AuthForm({ mode }: { mode: Mode }) {
       const response = await fetch(`/api/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isRegister ? { username, displayName, password } : { username, password }),
+        body: JSON.stringify(
+          isRegister ? { username, displayName, password, ...(inviteRequired ? { inviteCode } : {}) } : { username, password },
+        ),
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
@@ -118,6 +124,26 @@ export default function AuthForm({ mode }: { mode: Mode }) {
           </span>
         ) : null}
       </label>
+
+      {isRegister && inviteRequired ? (
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Code d&apos;invitation</span>
+          <input
+            className={inputClass}
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={100}
+            required
+            aria-describedby="invite-hint"
+          />
+          <span id="invite-hint" className="mt-1 block text-sm text-muted">
+            Demande-le à la personne qui t&apos;a invité(e).
+          </span>
+        </label>
+      ) : null}
 
       {error ? (
         <p role="alert" className="rounded-xl bg-danger/10 px-4 py-3 text-sm font-medium text-danger">

@@ -127,6 +127,11 @@ model Message {
   forwarded      Boolean     @default(false)
   // Personnes citées par « @pseudo » dans le texte (notifiées même si la discussion est en sourdine)
   mentionedIds String[] @default([])
+  // Message épinglé en haut de la discussion (3 au maximum par discussion)
+  pinnedAt     DateTime?
+  pinnedById   String?
+  // Réponse à un statut : extrait du statut cité
+  statusQuote  String?
   // Aperçu du premier lien du message (titre, description, image), ajouté après l'envoi
   linkPreview    Json?
   // Messages éphémères : le message disparaît à cette date

@@ -95,6 +95,8 @@ type ChatContextValue = {
   /** Identifiants de mes messages favoris */
   starredIds: ReadonlySet<string>;
   toggleStar: (messageId: string) => Promise<string | null>;
+  /** Épingle ou désépingle un message en haut de la discussion (renvoie un message d'erreur, ou null) */
+  pinMessage: (messageId: string, pinned: boolean) => Promise<string | null>;
 
   newChatOpen: boolean;
   setNewChatOpen: (open: boolean) => void;
@@ -221,6 +223,9 @@ function bumpConversation(
       message.senderId !== meId && message.type !== "SYSTEM" && !viewing
         ? current.unreadCount + 1
         : current.unreadCount,
+    hasUnreadMention:
+      current.hasUnreadMention ||
+      (message.senderId !== meId && !viewing && (message.mentionedIds ?? []).includes(meId)),
   };
   return list.map((c, i) => (i === index ? updated : c));
 }
@@ -604,7 +609,9 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       if (data.userId === meId) {
         setConversations((prev) =>
           prev.map((c) =>
-            c.id === data.conversationId && c.unreadCount > 0 ? { ...c, unreadCount: 0 } : c,
+            c.id === data.conversationId && c.unreadCount > 0
+              ? { ...c, unreadCount: 0, hasUnreadMention: false }
+              : c,
           ),
         );
       }
@@ -943,7 +950,7 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       const conversation = conversationsRef.current.find((c) => c.id === conversationId);
       if (!conversation || conversation.unreadCount === 0) return;
       setConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+        prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0, hasUnreadMention: false } : c)),
       );
       const socket = getSocket();
       if (socket.connected) socket.emit("message:read", { conversationId });
@@ -1140,6 +1147,11 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
     return null;
   }, []);
 
+  const pinMessage = useCallback(async (messageId: string, pinned: boolean) => {
+    const result = await apiRequest(`/api/messages/${messageId}/pin`, { method: "PUT", json: { pinned } });
+    return result.ok ? null : result.error;
+  }, []);
+
   // --- Mon profil ---
 
   const updateProfile = useCallback(async (patch: { displayName?: string; about?: string }) => {
@@ -1200,6 +1212,7 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       setMyAvatar,
       starredIds,
       toggleStar,
+      pinMessage,
       newChatOpen,
       setNewChatOpen,
     }),
@@ -1241,6 +1254,7 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       setMyAvatar,
       starredIds,
       toggleStar,
+      pinMessage,
       newChatOpen,
     ],
   );
