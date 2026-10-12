@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Forward, Pencil, Pin, PinOff, Reply, Share2, Star, Trash2 } from "lucide-react";
+import { Copy, Flag, Forward, Pencil, Pin, PinOff, Reply, Share2, Star, Trash2 } from "lucide-react";
 import { REACTION_EMOJIS } from "@/lib/limits";
 import type { ChatMessage } from "@/types/chat";
 
@@ -23,6 +23,7 @@ type MessageMenuProps = {
   onShare: () => void;
   onToggleStar: () => void;
   onTogglePin: () => void;
+  onReport: () => void;
   onForward: () => void;
   onEdit: () => void;
   onDelete: (scope: "me" | "all") => void;
@@ -122,6 +123,12 @@ export default function MessageMenu(props: MessageMenuProps) {
                 <button type="button" className={item} onClick={props.onEdit}>
                   <Pencil size={19} aria-hidden="true" />
                   Modifier
+                </button>
+              ) : null}
+              {!deleted && !props.mine && !["CALL", "SYSTEM"].includes(message.type) ? (
+                <button type="button" className={`${item} text-danger`} onClick={props.onReport}>
+                  <Flag size={19} aria-hidden="true" />
+                  Signaler
                 </button>
               ) : null}
               <button type="button" className={`${item} text-danger`} onClick={() => setStep("delete")}>

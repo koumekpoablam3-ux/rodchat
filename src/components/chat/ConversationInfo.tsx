@@ -6,6 +6,7 @@ import {
   Archive,
   ArchiveRestore,
   Ban,
+  Flag,
   Bell,
   BellOff,
   Clock,
@@ -30,6 +31,7 @@ import AddMembersDialog from "./AddMembersDialog";
 import Avatar from "./Avatar";
 import AvatarPicker from "./AvatarPicker";
 import { useChat } from "./ChatProvider";
+import ReportDialog from "./ReportDialog";
 import GroupInvite from "./GroupInvite";
 import MediaGallery from "./MediaGallery";
 import MuteDialog from "./MuteDialog";
@@ -74,6 +76,7 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -461,6 +464,10 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
                   Bloquer {other.displayName}
                 </button>
               )}
+              <button type="button" className={`${row} text-danger`} onClick={() => setReportOpen(true)}>
+                <Flag size={20} aria-hidden="true" />
+                Signaler {other.displayName}
+              </button>
             </div>
           ) : null}
 
@@ -524,6 +531,9 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
           memberIds={conversation.participants.map((p) => p.id)}
           onClose={() => setAddOpen(false)}
         />
+      ) : null}
+      {reportOpen && other ? (
+        <ReportDialog userId={other.id} name={other.displayName} onClose={() => setReportOpen(false)} />
       ) : null}
     </div>
   );

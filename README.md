@@ -43,6 +43,14 @@ Test sur téléphone en `http://` (réseau local) : ajoute `COOKIE_SECURE="false
 - Un fichier n'est lisible que par les membres de la discussion. Les documents sont toujours téléchargés, jamais exécutés dans le navigateur.
 - Vocaux : appuie sur le micro pour enregistrer, puis sur la flèche pour envoyer (10 minutes maximum).
 
+**Compte et sécurité** (*Paramètres → Compte et sécurité*). *Changer mon mot de passe* ; *Déconnecter mes autres appareils* (les anciens jetons de connexion cessent immédiatement de valoir, avec un délai de quelques secondes au plus) ; *Supprimer mon compte* (mot de passe demandé, suppression définitive : profil, discussions à deux et messages ; les contacts voient la discussion disparaître).
+
+**Signalements.** Menu d'un message → *Signaler*, ou *Signaler* dans les infos d'un contact. La personne n'est pas prévenue. Les administrateurs (variable `ADMIN_USERNAMES`) lisent les signalements ouverts sur `/admin/reports` (motif, extrait du message conservé même s'il est supprimé ensuite) et les marquent comme traités. Pas de suspension automatique de comptes pour l'instant.
+
+**Messages programmés.** Quand tu as écrit un message, l'icône calendrier à côté du bouton d'envoi permet de choisir l'heure (dans 1 h, ce soir, demain, ou une date précise, jusqu'à 30 jours). Tu peux voir et annuler les messages en attente dans la même fenêtre (20 maximum). **Limite à connaître :** sur l'offre gratuite de Vercel, il n'y a pas de tâche planifiée plus fréquente qu'une par jour. Le message part donc à l'heure dite tant qu'au moins une personne utilise Rodchat à ce moment-là (chaque onglet ouvert vérifie toutes les ~5 secondes) ; sinon il part à la prochaine visite, au plus tard à la tâche quotidienne. Avec l'offre Pro de Vercel, remplace le calendrier dans `vercel.json` par `* * * * *` pour un envoi à la minute près même sans personne en ligne.
+
+**Pages légales.** `/conditions` et `/confidentialite` (publiques, liées depuis l'inscription et les paramètres) décrivent ce que fait réellement l'application, y compris le fait qu'elle **n'est pas chiffrée de bout en bout**. Ce sont des modèles rédigés pour Rodchat : fais-les relire par un professionnel du droit et adapte-les à ton pays avant un lancement public.
+
 **Inscription sur invitation (facultatif).** Définis `INVITE_CODE` dans Vercel : l'inscription demande alors ce code (vérifié côté serveur, comparaison à durée constante). Pour inviter quelqu'un, envoie-lui le lien `https://ton-site.vercel.app/register?code=TON_CODE`, qui remplit le champ tout seul. Sans la variable, l'inscription reste ouverte à tous. Les personnes déjà inscrites ne sont pas concernées.
 
 **Messages épinglés.** Menu d'un message → *Épingler* (texte, photo, vidéo, vocal, fichier). Jusqu'à 3 messages par discussion, visibles par tous les membres dans une barre sous l'en-tête ; un toucher mène au message (et passe au suivant s'il y en a plusieurs). Une ligne « X a épinglé un message » s'ajoute dans la discussion. Au-delà de 3, le plus ancien est désépinglé.
@@ -146,6 +154,8 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
    | `AUTH_SECRET` | `openssl rand -base64 32` |
    | `CRON_SECRET` | `openssl rand -hex 32` |
    | `INVITE_CODE` | facultatif : code à connaître pour créer un compte (inscription sur invitation) |
+   | `ADMIN_USERNAMES` | facultatif : noms d'utilisateur des administrateurs (séparés par des virgules), pour lire les signalements |
+   | `NEXT_PUBLIC_CONTACT_EMAIL` | facultatif : adresse de contact affichée dans les pages légales |
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | facultatif, pour les notifications (`npx web-push generate-vapid-keys`) |
    | `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | facultatif, voir plus haut |
 
@@ -187,3 +197,21 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
 ## Pistes pour la suite
 
 Mentions `@` dans les groupes, statuts, liste de personnes bloquées, appels de groupe de plus de 6 personnes (serveur média), restriction « seuls les admins écrivent » dans un groupe, chiffrement de bout en bout, limiteur de débit partagé (Redis) si plusieurs instances, recherche plein texte pour une très grosse base.
+
+
+## Feuille de route (d'après la proposition d'évolution)
+
+**Déjà dans l'application :** messages, réponses, citations, réactions, mentions, vocaux, appels audio/vidéo individuels et de groupe, photos, vidéos et fichiers, modification et suppression, épinglage, recherche et filtres, groupes, statuts, accusés de lecture et présence configurables, messages éphémères, blocage, signalement, mots de passe hachés, protection contre les tentatives abusives, déconnexion des autres appareils, suppression de compte, messages programmés, mode hors connexion avec reprise des envois, inscription sur invitation, pages légales.
+
+**Demande une décision ou un service externe avant de commencer (et donc pas fait) :**
+
+| Pistes du document | Pourquoi ce n'est pas fait | Ce qu'il faut décider |
+| --- | --- | --- |
+| RodChat AI, traduction, transcription vocale | Nécessite un service d'IA payant à l'usage, et l'envoi de messages privés à un tiers | Quel prestataire, quel budget par utilisateur, consentement explicite et option « jamais envoyer mes messages » |
+| Premium, Business, créateurs, paiements | Nécessite un prestataire de paiement (adapté aux pays visés), la facturation, les conditions de vente, et des fonctions qui valent vraiment l'abonnement | Qui paie quoi, quelles limites gratuites, quels pays et moyens de paiement |
+| GIF et stickers | Nécessite un catalogue (souvent un service tiers avec clé d'API et conditions d'usage) | Choisir un catalogue ou créer des stickers propres |
+| Chiffrement de bout en bout | Ce n'est pas un réglage mais une refonte (clés par appareil, sauvegardes, groupes) qui doit être testée sérieusement | Le faire vraiment, ou continuer à dire clairement qu'il n'y en a pas (c'est le cas dans les pages légales) |
+| Communautés, chaînes, sondages, salles audio | Gros chantiers à part (rôles, diffusion à grande échelle, audio temps réel) | Priorité par rapport au reste, après avoir mesuré l'usage |
+| Gestion détaillée des appareils (liste, noms) et verrouillage de conversations | Demande des sessions stockées par appareil ; le verrouillage doit être pensé avec la sécurité de l'appareil | À planifier ensuite |
+
+**Indicateurs à suivre (section 7 du document) :** l'application ne mesure rien pour l'instant. Avant d'en ajouter, décide quoi mesurer et comment l'expliquer dans la politique de confidentialité.

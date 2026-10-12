@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { usePush } from "@/hooks/usePush";
 import { apiRequest } from "@/lib/client-api";
 import type { Theme } from "@/lib/theme";
+import AccountSecuritySection from "./AccountSecuritySection";
 
 type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean };
 
@@ -189,6 +190,8 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
                   />
                 )}
               </section>
+
+              <AccountSecuritySection />
             </>
           ) : null}
 

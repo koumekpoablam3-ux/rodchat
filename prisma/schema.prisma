@@ -67,6 +67,9 @@ model User {
   theme             String             @default("auto") // auto | light | dark
   readReceipts      Boolean            @default(true) // envoyer mes accusés de lecture
   lastSeenVisible   Boolean            @default(true) // montrer ma dernière connexion
+  // Incrémenté pour déconnecter tous les appareils (changement de mot de passe, « déconnecter les autres »)
+  sessionVersion    Int                @default(0)
+  scheduledMessages ScheduledMessage[]
 }
 
 model Conversation {
@@ -87,6 +90,7 @@ model Conversation {
   participants Participant[]
   messages     Message[]
   calls        Call[]
+  scheduledMessages ScheduledMessage[]
 
   @@index([lastMessageAt])
 }
@@ -380,4 +384,41 @@ model StatusView {
 
   @@id([statusId, userId])
   @@index([userId])
+}
+
+// --- Messages programmés : envoyés à l'heure choisie par la première fonction qui passe après ---
+model ScheduledMessage {
+  id             String   @id @default(cuid())
+  senderId       String
+  conversationId String
+  content        String
+  sendAt         DateTime
+  // Nombre de tentatives d'envoi (abandon au bout de 5)
+  attempts       Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([sendAt])
+  @@index([senderId, conversationId])
+}
+
+// --- Signalements (messages ou personnes), traités depuis /admin/reports ---
+// Pas de clés étrangères : le signalement et son extrait survivent à la suppression du message ou du compte.
+model Report {
+  id              String    @id @default(cuid())
+  reporterId      String
+  targetUserId    String?
+  targetName      String?
+  messageId       String?
+  conversationId  String?
+  reason          String
+  details         String?
+  messageExcerpt  String?
+  status          String    @default("OPEN") // OPEN | RESOLVED
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  @@index([status, createdAt])
 }

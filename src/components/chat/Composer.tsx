@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { FileText, ImageIcon, Mic, Paperclip, Pencil, SendHorizontal, Trash2, Video, X } from "lucide-react";
+import { CalendarClock, FileText, ImageIcon, Mic, Paperclip, Pencil, SendHorizontal, Trash2, Video, X } from "lucide-react";
 import { useVoiceRecorder, type VoiceRecording } from "@/hooks/useVoiceRecorder";
 import { formatDuration } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
@@ -10,6 +10,7 @@ import { mentionAtCaret } from "@/lib/mentions";
 import type { ChatMessage } from "@/types/chat";
 import { useChat } from "./ChatProvider";
 import QuotedBlock from "./QuotedBlock";
+import ScheduleDialog from "./ScheduleDialog";
 
 type ComposerProps = {
   conversationId: string;
@@ -36,6 +37,7 @@ export default function Composer({
   const { me, conversations, sendMessage, sendAttachment, sendTyping, editMessage } = useChat();
 
   const [text, setText] = useState("");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   // « @ » en cours de frappe dans un groupe : suggestions de membres
@@ -459,6 +461,18 @@ export default function Composer({
             />
           </div>
 
+          {hasText && !editing ? (
+            <button
+              type="button"
+              onClick={() => setScheduleOpen(true)}
+              aria-label="Programmer l'envoi"
+              title="Programmer l'envoi"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-bg"
+            >
+              <CalendarClock size={20} />
+            </button>
+          ) : null}
+
           {hasText ? (
             <button
               type="submit"
@@ -479,6 +493,17 @@ export default function Composer({
           )}
         </form>
       )}
+      {scheduleOpen ? (
+        <ScheduleDialog
+          conversationId={conversationId}
+          text={text.trim()}
+          onScheduled={() => {
+            setText("");
+            onCancelReply();
+          }}
+          onClose={() => setScheduleOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

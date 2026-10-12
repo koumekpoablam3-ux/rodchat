@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ONLINE_WINDOW_MS, purgeOldEvents } from "@/lib/realtime";
 import { deliverPending } from "@/lib/rt-actions";
 import { pendingCallEvents, sweepCalls } from "@/lib/rt-calls";
+import { sendDueScheduledMessages } from "@/lib/scheduled";
 import { getSessionUserId } from "@/lib/session";
 import { NextResponse } from "next/server";
 
@@ -170,6 +171,8 @@ export async function GET(req: Request) {
             if (now - lastSweep >= SWEEP_MS) {
               lastSweep = now;
               await sweepCalls();
+              // Messages programmés dont l'heure est venue (sans jamais faire tomber le flux)
+              await sendDueScheduledMessages().catch((error) => console.error("[scheduled]", error));
             }
 
             if (now - lastPresence >= PRESENCE_MS) {

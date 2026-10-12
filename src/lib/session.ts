@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { AUTH_COOKIE, signToken, verifyToken } from "./auth";
+import { AUTH_COOKIE, signToken, verifyTokenFull } from "./auth";
 import { prisma } from "./prisma";
 import { serializeUser, userSelect } from "./users";
 
@@ -19,8 +19,29 @@ function cookieOptions() {
   };
 }
 
+// Version de session de chaque compte, gardée 10 s en mémoire pour ne pas interroger la base à chaque requête.
+// Changer le mot de passe ou « déconnecter les autres appareils » l'incrémente : les anciens jetons cessent de valoir.
+const versionCache = new Map<string, { version: number; at: number }>();
+const VERSION_TTL_MS = 10_000;
+
+async function currentSessionVersion(userId: string): Promise<number> {
+  const hit = versionCache.get(userId);
+  if (hit && Date.now() - hit.at < VERSION_TTL_MS) return hit.version;
+  const row = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
+  const version = row?.sessionVersion ?? -1; // -1 : le compte n'existe plus
+  if (versionCache.size > 2000) versionCache.clear();
+  versionCache.set(userId, { version, at: Date.now() });
+  return version;
+}
+
+export function forgetSessionVersion(userId: string) {
+  versionCache.delete(userId);
+}
+
 export async function startSession(userId: string) {
-  cookies().set(AUTH_COOKIE, await signToken(userId), cookieOptions());
+  forgetSessionVersion(userId);
+  const version = await currentSessionVersion(userId);
+  cookies().set(AUTH_COOKIE, await signToken(userId, Math.max(0, version)), cookieOptions());
 }
 
 export function endSession() {
@@ -29,7 +50,10 @@ export function endSession() {
 
 export async function getSessionUserId() {
   const token = cookies().get(AUTH_COOKIE)?.value;
-  return token ? verifyToken(token) : null;
+  const verified = token ? await verifyTokenFull(token) : null;
+  if (!verified) return null;
+  // Jeton révoqué (mot de passe changé, appareils déconnectés) ou compte supprimé
+  return (await currentSessionVersion(verified.userId)) === verified.sessionVersion ? verified.userId : null;
 }
 
 /** Utilisateur connecté, relu en base (null si le compte n'existe plus) */

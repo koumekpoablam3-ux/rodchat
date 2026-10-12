@@ -159,6 +159,20 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
         {busy ? "Un instant…" : isRegister ? "Créer mon compte" : "Se connecter"}
       </button>
 
+      {isRegister ? (
+        <p className="text-center text-xs text-muted">
+          En créant un compte, tu acceptes les{" "}
+          <Link href="/conditions" className="font-semibold underline">
+            conditions d&apos;utilisation
+          </Link>{" "}
+          et la{" "}
+          <Link href="/confidentialite" className="font-semibold underline">
+            politique de confidentialité
+          </Link>
+          .
+        </p>
+      ) : null}
+
       <p className="text-center text-sm text-muted">
         {isRegister ? "Tu as déjà un compte ?" : "Pas encore de compte ?"}{" "}
         <Link href={`${isRegister ? "/login" : "/register"}${nextQuery}`} className="font-semibold text-brand underline">

@@ -9,8 +9,8 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function signToken(userId: string) {
-  return new SignJWT({})
+export async function signToken(userId: string, sessionVersion = 0) {
+  return new SignJWT({ sv: sessionVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
@@ -19,9 +19,15 @@ export async function signToken(userId: string) {
 }
 
 export async function verifyToken(token: string): Promise<string | null> {
+  return (await verifyTokenFull(token))?.userId ?? null;
+}
+
+/** Jeton valide : la personne et la version de session qu'il porte (0 pour les anciens jetons, sans version) */
+export async function verifyTokenFull(token: string): Promise<{ userId: string; sessionVersion: number } | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret());
-    return payload.sub ?? null;
+    if (!payload.sub) return null;
+    return { userId: payload.sub, sessionVersion: typeof payload.sv === "number" ? payload.sv : 0 };
   } catch {
     return null;
   }

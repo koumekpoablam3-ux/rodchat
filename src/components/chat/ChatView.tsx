@@ -17,6 +17,7 @@ import ConversationSearch from "./ConversationSearch";
 import ForwardDialog from "./ForwardDialog";
 import MessageBubble from "./MessageBubble";
 import MessageMenu from "./MessageMenu";
+import ReportDialog from "./ReportDialog";
 import SystemRow from "./SystemRow";
 
 type Item =
@@ -96,6 +97,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [pinIndex, setPinIndex] = useState(0);
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -691,6 +693,10 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         />
       )}
 
+      {reportMessageId ? (
+        <ReportDialog messageId={reportMessageId} name="ce message" onClose={() => setReportMessageId(null)} />
+      ) : null}
+
       {menuMessage ? (
         <MessageMenu
           message={menuMessage}
@@ -722,6 +728,10 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           onShare={() => void shareText(menuMessage)}
           onToggleStar={() => void star(menuMessage)}
           onTogglePin={() => void togglePin(menuMessage)}
+          onReport={() => {
+            closeMenu();
+            setReportMessageId(menuMessage.id);
+          }}
           onForward={() => {
             closeMenu();
             setForwardId(menuMessage.id);
