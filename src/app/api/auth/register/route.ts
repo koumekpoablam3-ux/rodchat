@@ -3,6 +3,7 @@ import { hash } from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "@/lib/api";
 import { inviteMatches } from "@/lib/invite";
+import { registrationPolicy } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
@@ -41,8 +42,12 @@ export async function POST(req: Request) {
   }
   const { username, displayName, password, inviteCode } = parsed.data;
 
-  // Inscription sur invitation : sans le bon code, rien ne se passe (vérifié avant tout le reste)
-  if (!inviteMatches(inviteCode)) {
+  // Inscriptions fermées, ou sur invitation : vérifié avant tout le reste
+  const policy = await registrationPolicy();
+  if (policy.mode === "closed") {
+    return NextResponse.json({ error: "Les inscriptions sont fermées pour le moment." }, { status: 403 });
+  }
+  if (policy.mode === "invite" && !inviteMatches(policy.code, inviteCode)) {
     return NextResponse.json({ error: "Code d'invitation incorrect." }, { status: 403 });
   }
 

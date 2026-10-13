@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, Download, EllipsisVertical, LogOut, Settings, Star, UserRound } from "lucide-react";
+import { Bell, BellOff, Download, EllipsisVertical, LogOut, Settings, ShieldCheck, Star, UserRound } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { usePush } from "@/hooks/usePush";
 import { getSocket } from "@/lib/socket";
@@ -23,6 +23,15 @@ export default function AppMenu() {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Le lien « Espace admin » n'apparaît que pour les administrateurs
+  useEffect(() => {
+    fetch("/api/admin/me", { cache: "no-store" })
+      .then((response) => response.json() as Promise<{ admin?: boolean }>)
+      .then((data) => setIsAdmin(data.admin === true))
+      .catch(() => {});
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -104,6 +113,20 @@ export default function AppMenu() {
             <Star size={18} aria-hidden="true" />
             Messages favoris
           </button>
+          {isAdmin ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={itemClass}
+              onClick={() => {
+                setOpen(false);
+                router.push("/admin");
+              }}
+            >
+              <ShieldCheck size={18} aria-hidden="true" />
+              Espace admin
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

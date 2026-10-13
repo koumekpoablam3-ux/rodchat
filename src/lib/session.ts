@@ -19,28 +19,29 @@ function cookieOptions() {
   };
 }
 
-// Version de session de chaque compte, gardée 10 s en mémoire pour ne pas interroger la base à chaque requête.
-// Changer le mot de passe ou « déconnecter les autres appareils » l'incrémente : les anciens jetons cessent de valoir.
-const versionCache = new Map<string, { version: number; at: number }>();
-const VERSION_TTL_MS = 10_000;
+// État de session de chaque compte, gardé 10 s en mémoire pour ne pas interroger la base à chaque requête.
+// Changer le mot de passe, « déconnecter les autres appareils » ou suspendre un compte change cet état :
+// les anciens jetons cessent alors de valoir.
+const stateCache = new Map<string, { version: number; suspended: boolean; at: number }>();
+const STATE_TTL_MS = 10_000;
 
-async function currentSessionVersion(userId: string): Promise<number> {
-  const hit = versionCache.get(userId);
-  if (hit && Date.now() - hit.at < VERSION_TTL_MS) return hit.version;
-  const row = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
-  const version = row?.sessionVersion ?? -1; // -1 : le compte n'existe plus
-  if (versionCache.size > 2000) versionCache.clear();
-  versionCache.set(userId, { version, at: Date.now() });
-  return version;
+async function sessionState(userId: string): Promise<{ version: number; suspended: boolean }> {
+  const hit = stateCache.get(userId);
+  if (hit && Date.now() - hit.at < STATE_TTL_MS) return hit;
+  const row = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true, suspendedAt: true } });
+  const state = { version: row?.sessionVersion ?? -1, suspended: Boolean(row?.suspendedAt), at: Date.now() }; // -1 : compte supprimé
+  if (stateCache.size > 2000) stateCache.clear();
+  stateCache.set(userId, state);
+  return state;
 }
 
 export function forgetSessionVersion(userId: string) {
-  versionCache.delete(userId);
+  stateCache.delete(userId);
 }
 
 export async function startSession(userId: string) {
   forgetSessionVersion(userId);
-  const version = await currentSessionVersion(userId);
+  const { version } = await sessionState(userId);
   cookies().set(AUTH_COOKIE, await signToken(userId, Math.max(0, version)), cookieOptions());
 }
 
@@ -52,8 +53,9 @@ export async function getSessionUserId() {
   const token = cookies().get(AUTH_COOKIE)?.value;
   const verified = token ? await verifyTokenFull(token) : null;
   if (!verified) return null;
-  // Jeton révoqué (mot de passe changé, appareils déconnectés) ou compte supprimé
-  return (await currentSessionVersion(verified.userId)) === verified.sessionVersion ? verified.userId : null;
+  // Jeton révoqué (mot de passe changé, appareils déconnectés), compte supprimé ou suspendu
+  const state = await sessionState(verified.userId);
+  return !state.suspended && state.version === verified.sessionVersion ? verified.userId : null;
 }
 
 /** Utilisateur connecté, relu en base (null si le compte n'existe plus) */

@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { username },
-    select: { ...userSelect, passwordHash: true },
+    select: { ...userSelect, passwordHash: true, suspendedAt: true },
   });
 
   // Même message ET même durée dans les deux cas : on ne révèle pas si le compte existe
@@ -48,8 +48,17 @@ export async function POST(req: Request) {
     );
   }
 
+  // Le mot de passe est bon mais le compte a été suspendu par un administrateur
+  if (user.suspendedAt) {
+    return NextResponse.json(
+      { error: "Ce compte a été suspendu. Contacte l'administrateur du service." },
+      { status: 403 },
+    );
+  }
+
   await startSession(user.id);
-  const { passwordHash: _passwordHash, ...publicUser } = user;
+  const { passwordHash: _passwordHash, suspendedAt: _suspendedAt, ...publicUser } = user;
   void _passwordHash;
+  void _suspendedAt;
   return NextResponse.json({ user: serializeUser(publicUser) });
 }

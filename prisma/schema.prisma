@@ -69,6 +69,9 @@ model User {
   lastSeenVisible   Boolean            @default(true) // montrer ma dernière connexion
   // Incrémenté pour déconnecter tous les appareils (changement de mot de passe, « déconnecter les autres »)
   sessionVersion    Int                @default(0)
+  // Compte suspendu par un administrateur : connexion impossible
+  suspendedAt       DateTime?
+  suspendedReason   String?
   scheduledMessages ScheduledMessage[]
 }
 
@@ -421,4 +424,27 @@ model Report {
   resolvedAt      DateTime?
 
   @@index([status, createdAt])
+}
+
+// --- Administration ---
+
+// Réglages de la plateforme modifiables depuis l'espace admin (inscription, annonce…)
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Journal de toutes les actions des administrateurs (qui, quoi, sur qui, quand)
+model AdminLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  adminName  String
+  action     String
+  targetId   String?
+  targetName String?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

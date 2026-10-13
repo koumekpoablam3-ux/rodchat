@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { compare } from "bcryptjs";
 import { z } from "zod";
+import { deleteUserAccount } from "@/lib/account";
 import { badRequest, unauthorized } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
-import { getRealtime } from "@/lib/realtime";
-import { endSession, forgetSessionVersion, getSessionUserId } from "@/lib/session";
+import { endSession, getSessionUserId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -28,24 +28,7 @@ export async function DELETE(req: Request) {
     return badRequest("Mot de passe incorrect.");
   }
 
-  // Discussions à deux : elles n'ont plus de sens sans moi. Les autres personnes sont prévenues.
-  const direct = await prisma.conversation.findMany({
-    where: { isGroup: false, participants: { some: { userId } } },
-    select: { id: true, participants: { select: { userId: true } } },
-  });
-  await prisma.conversation.deleteMany({ where: { id: { in: direct.map((c) => c.id) } } });
-  await prisma.user.delete({ where: { id: userId } });
-
-  const realtime = getRealtime();
-  await realtime.emitBatch(
-    direct.flatMap((conversation) =>
-      conversation.participants
-        .filter((p) => p.userId !== userId)
-        .map((p) => ({ rooms: `user:${p.userId}`, event: "conversation:removed", payload: { id: conversation.id } })),
-    ),
-  );
-
-  forgetSessionVersion(userId);
+  await deleteUserAccount(userId);
   endSession();
   return NextResponse.json({ ok: true });
 }

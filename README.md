@@ -45,7 +45,21 @@ Test sur téléphone en `http://` (réseau local) : ajoute `COOKIE_SECURE="false
 
 **Compte et sécurité** (*Paramètres → Compte et sécurité*). *Changer mon mot de passe* ; *Déconnecter mes autres appareils* (les anciens jetons de connexion cessent immédiatement de valoir, avec un délai de quelques secondes au plus) ; *Supprimer mon compte* (mot de passe demandé, suppression définitive : profil, discussions à deux et messages ; les contacts voient la discussion disparaître).
 
-**Signalements.** Menu d'un message → *Signaler*, ou *Signaler* dans les infos d'un contact. La personne n'est pas prévenue. Les administrateurs (variable `ADMIN_USERNAMES`) lisent les signalements ouverts sur `/admin/reports` (motif, extrait du message conservé même s'il est supprimé ensuite) et les marquent comme traités. Pas de suspension automatique de comptes pour l'instant.
+**Signalements.** Menu d'un message → *Signaler*, ou *Signaler* dans les infos d'un contact. La personne n'est pas prévenue. Les signalements arrivent dans l'espace admin (ci-dessous).
+
+**Espace admin** (`/admin`, ou *Espace admin* dans le menu ⋮ pour les administrateurs).
+
+*Devenir administrateur :* il n'y a pas de compte admin livré avec l'application (ce serait une faille). Crée un compte normal, puis mets son nom d'utilisateur dans la variable `ADMIN_USERNAMES` sur Vercel (plusieurs : séparés par des virgules) et redéploie. Aucune action de l'application ne peut donner ce statut à quelqu'un d'autre : seule cette variable fait foi. Les autres personnes voient une page « introuvable » sur `/admin`.
+
+*Ce que l'admin peut faire :*
+- **Tableau de bord** : nombre de comptes, actifs sur 24 h, nouveaux, messages, groupes, statuts, signalements ouverts, et l'espace utilisé dans Neon par rapport aux 512 Mo de l'offre gratuite.
+- **Utilisateurs** : recherche, et pour chaque compte *suspendre* (avec motif ; connexion impossible et appareils déconnectés en quelques secondes) ou *réactiver*, *déconnecter ses appareils*, *réinitialiser le mot de passe* (un mot de passe temporaire est affiché une seule fois), *supprimer le compte* (définitif, nom d'utilisateur à retaper).
+- **Groupes** : liste (nom, membres, nombre de messages) et suppression d'un groupe.
+- **Signalements** : motif, extrait du message conservé, *marquer comme traité*, *supprimer le message* pour tout le monde, *suspendre la personne*. Onglet des signalements déjà traités.
+- **Réglages** : inscription *ouverte*, *sur invitation* (code modifiable, lien à partager) ou *fermée*, et une **annonce** affichée à tous les utilisateurs connectés (qu'ils peuvent fermer). Ces réglages l'emportent sur la variable `INVITE_CODE`.
+- **Journal** : trace de toutes les actions d'administration (qui, quoi, sur qui, quand).
+
+*Garde-fous :* un administrateur ne peut ni se suspendre ni se supprimer, ni modifier un autre administrateur depuis l'espace admin ; chaque action est vérifiée côté serveur et journalisée. **Pour la vie privée, l'espace admin ne permet pas de lire les conversations** : il ne montre que le contenu des messages qui ont été signalés. Cette limite est volontaire (voir la politique de confidentialité, qui précise par ailleurs que l'administrateur peut techniquement accéder à la base de données).
 
 **Messages programmés.** Quand tu as écrit un message, l'icône calendrier à côté du bouton d'envoi permet de choisir l'heure (dans 1 h, ce soir, demain, ou une date précise, jusqu'à 30 jours). Tu peux voir et annuler les messages en attente dans la même fenêtre (20 maximum). **Limite à connaître :** sur l'offre gratuite de Vercel, il n'y a pas de tâche planifiée plus fréquente qu'une par jour. Le message part donc à l'heure dite tant qu'au moins une personne utilise Rodchat à ce moment-là (chaque onglet ouvert vérifie toutes les ~5 secondes) ; sinon il part à la prochaine visite, au plus tard à la tâche quotidienne. Avec l'offre Pro de Vercel, remplace le calendrier dans `vercel.json` par `* * * * *` pour un envoi à la minute près même sans personne en ligne.
 
@@ -153,8 +167,8 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
    | `DIRECT_URL` | chaîne directe |
    | `AUTH_SECRET` | `openssl rand -base64 32` |
    | `CRON_SECRET` | `openssl rand -hex 32` |
-   | `INVITE_CODE` | facultatif : code à connaître pour créer un compte (inscription sur invitation) |
-   | `ADMIN_USERNAMES` | facultatif : noms d'utilisateur des administrateurs (séparés par des virgules), pour lire les signalements |
+   | `INVITE_CODE` | facultatif : code d'invitation de départ ; l'espace admin (Réglages) peut ensuite le remplacer |
+   | `ADMIN_USERNAMES` | **à définir** : noms d'utilisateur des administrateurs (séparés par des virgules), pour accéder à `/admin` |
    | `NEXT_PUBLIC_CONTACT_EMAIL` | facultatif : adresse de contact affichée dans les pages légales |
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | facultatif, pour les notifications (`npx web-push generate-vapid-keys`) |
    | `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | facultatif, voir plus haut |
