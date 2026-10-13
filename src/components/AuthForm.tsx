@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Eye, EyeOff, Loader2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type Mode = "login" | "register";
 
 const inputClass =
-  "h-12 w-full rounded-xl border border-line bg-panel px-4 text-base placeholder:text-muted";
+  "h-12 w-full rounded-xl border border-line bg-panel px-4 text-base shadow-sm transition-shadow placeholder:text-muted focus:shadow-md";
 
 /** Page demandée avant la connexion (?next=), limitée aux pages de l'application */
 function nextPath() {
@@ -33,6 +34,14 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+  const firstField = useRef<HTMLInputElement>(null);
+
+  // Ordinateur : le curseur est déjà dans le premier champ. Téléphone : non, pour ne pas ouvrir le clavier tout de suite.
+  useEffect(() => {
+    if (window.matchMedia("(pointer: fine)").matches) firstField.current?.focus();
+  }, []);
 
   const isRegister = mode === "register";
 
@@ -64,7 +73,7 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
 
   return (
     <form onSubmit={onSubmit} className="w-full space-y-4" noValidate>
-      <div>
+      <div className="auth-rise auth-rise-1">
         <h2 className="font-display text-3xl font-bold tracking-tight">
           {isRegister ? "Créer ton compte" : "Content de te revoir"}
         </h2>
@@ -74,10 +83,11 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
       </div>
 
       {isRegister ? (
-        <label className="block">
+        <label className="auth-rise auth-rise-2 block">
           <span className="mb-1 block text-sm font-medium">Ton nom</span>
           <input
             className={inputClass}
+            ref={isRegister ? firstField : undefined}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             autoComplete="name"
@@ -87,9 +97,10 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
         </label>
       ) : null}
 
-      <label className="block">
+      <label className="auth-rise auth-rise-2 block">
         <span className="mb-1 block text-sm font-medium">Nom d&apos;utilisateur</span>
         <input
+          ref={isRegister ? undefined : firstField}
           className={inputClass}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -107,23 +118,53 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
         ) : null}
       </label>
 
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium">Mot de passe</span>
-        <input
-          className={inputClass}
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={isRegister ? "new-password" : "current-password"}
-          required
-          aria-describedby={isRegister ? "password-hint" : undefined}
-        />
+      <div className="auth-rise auth-rise-3">
+        <label htmlFor="password" className="mb-1 block text-sm font-medium">
+          Mot de passe
+        </label>
+        <div className="relative">
+          <input
+            id="password"
+            className={`${inputClass} pr-12`}
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+            onBlur={() => setCapsLock(false)}
+            autoComplete={isRegister ? "new-password" : "current-password"}
+            required
+            aria-describedby={isRegister ? "password-hint" : undefined}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((value) => !value)}
+            aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            aria-pressed={showPassword}
+            className="absolute right-1 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-muted hover:text-ink"
+          >
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
+        </div>
+        {capsLock ? (
+          <p role="status" className="mt-1 flex items-center gap-1.5 text-sm font-medium text-danger">
+            <TriangleAlert size={15} aria-hidden="true" />
+            Les majuscules sont verrouillées.
+          </p>
+        ) : null}
         {isRegister ? (
           <span id="password-hint" className="mt-1 block text-sm text-muted">
             8 caractères minimum.
           </span>
-        ) : null}
-      </label>
+        ) : (
+          <details className="mt-2 text-sm">
+            <summary className="w-fit cursor-pointer font-semibold text-brand underline">Mot de passe oublié ?</summary>
+            <p className="mt-1 rounded-xl bg-panel px-3 py-2 text-muted">
+              Il n&apos;y a pas d&apos;envoi d&apos;e-mail : demande à l&apos;administrateur de Rodchat de réinitialiser ton
+              mot de passe. Il te donnera un mot de passe temporaire que tu pourras changer ensuite dans les paramètres.
+            </p>
+          </details>
+        )}
+      </div>
 
       {isRegister && inviteRequired ? (
         <label className="block">
@@ -154,9 +195,18 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
       <button
         type="submit"
         disabled={busy}
-        className="h-12 w-full rounded-xl bg-brand font-semibold text-brand-ink disabled:opacity-60"
+        className="h-12 w-full rounded-xl bg-brand font-semibold text-brand-ink shadow-md transition-transform hover:-translate-y-px active:translate-y-0 disabled:opacity-60 disabled:hover:translate-y-0"
       >
-        {busy ? "Un instant…" : isRegister ? "Créer mon compte" : "Se connecter"}
+        {busy ? (
+          <span className="inline-flex items-center justify-center gap-2">
+            <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+            Un instant…
+          </span>
+        ) : isRegister ? (
+          "Créer mon compte"
+        ) : (
+          "Se connecter"
+        )}
       </button>
 
       {isRegister ? (

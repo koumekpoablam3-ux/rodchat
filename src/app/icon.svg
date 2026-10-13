@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Rodchat">
+  <rect width="512" height="512" rx="112" fill="#2B1D44"/>
+  <rect x="96" y="108" width="320" height="250" rx="78" fill="#F5B335"/>
+  <path d="M146 338 L134 428 L226 358 Z" fill="#F5B335"/>
+  <path fill="#2B1D44" fill-rule="evenodd" d="M203 160 H276 C304 160 318 179 318 202 C318 224 305 239 284 245 L320 305 H275 L243 249 V305 H203 Z M243 192 V219 H270 C281 219 286 213 286 205.5 C286 198 281 192 270 192 Z"/>
+</svg>

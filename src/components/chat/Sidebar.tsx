@@ -9,6 +9,7 @@ import { useMessageSearch } from "@/hooks/useMessageSearch";
 import { isMuted } from "@/lib/conversation-sort";
 import { formatDuration, formatListDate } from "@/lib/format";
 import type { ConversationSummary } from "@/types/chat";
+import { LogoMark } from "@/components/Logo";
 import AppMenu from "./AppMenu";
 import Avatar from "./Avatar";
 import CallsPane from "./CallsPane";
@@ -178,7 +179,14 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
       <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col md:order-2">
       <header className="flex items-center justify-between gap-2 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <h1 className="font-display text-[1.75rem] font-extrabold leading-none tracking-tight text-brand">
-          {tab === "calls" ? "Appels" : "rodchat"}
+          {tab === "calls" ? (
+            "Appels"
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              <LogoMark size={30} />
+              rodchat
+            </span>
+          )}
         </h1>
         <div className="flex items-center gap-1">
           <button
