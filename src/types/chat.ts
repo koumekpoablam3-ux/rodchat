@@ -26,7 +26,7 @@ export type Reaction = {
   emoji: string;
 };
 
-export type MessageType = "TEXT" | "IMAGE" | "AUDIO" | "VIDEO" | "FILE" | "CALL" | "SYSTEM";
+export type MessageType = "TEXT" | "IMAGE" | "AUDIO" | "VIDEO" | "FILE" | "POLL" | "CALL" | "SYSTEM";
 export type AttachmentType = "IMAGE" | "AUDIO" | "VIDEO" | "FILE";
 export type CallKind = "AUDIO" | "VIDEO";
 export type CallStatus = "RINGING" | "ACTIVE" | "ENDED" | "MISSED" | "DECLINED";
@@ -98,6 +98,8 @@ export type ChatMessage = {
   forwarded: boolean;
   /** Personnes citées par « @pseudo » (absent sur les messages pas encore confirmés) */
   mentionedIds?: string[];
+  /** Sondage : question, réponses et qui a voté pour quoi */
+  poll?: { question: string; multiple: boolean; options: { id: string; text: string; votes: { userId: string }[] }[] } | null;
   /** Réponse à un statut : extrait du statut cité */
   statusQuote?: string | null;
   linkPreview: LinkPreview | null;

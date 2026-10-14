@@ -34,6 +34,16 @@ export const messageInclude = {
       height: true,
     },
   },
+  poll: {
+    select: {
+      question: true,
+      multiple: true,
+      options: {
+        orderBy: { position: "asc" },
+        select: { id: true, text: true, votes: { select: { userId: true } } },
+      },
+    },
+  },
   call: { select: { kind: true, status: true, durationSec: true, calleeId: true } },
   reactions: { select: { userId: true, emoji: true } },
   replyTo: { select: quotedSelect },
@@ -82,6 +92,8 @@ export type PostMessageInput = {
   forwarded?: boolean;
   /** Réponse à un statut : extrait du statut cité */
   statusQuote?: string | null;
+  /** Sondage : la question est aussi le contenu du message (aperçus, recherche) */
+  poll?: { question: string; options: string[]; multiple: boolean };
 };
 
 function pushBody(message: MessageWithRelations) {
@@ -96,6 +108,8 @@ function pushBody(message: MessageWithRelations) {
       return "Vidéo";
     case "FILE":
       return message.attachment ? `Document : ${message.attachment.fileName}` : "Document";
+    case "POLL":
+      return `Sondage : ${(message.content ?? "").slice(0, 100)}`;
     case "CALL":
       return message.call?.kind === "VIDEO" ? "Appel vidéo manqué" : "Appel audio manqué";
     default:
@@ -139,6 +153,7 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
     replyToId,
     forwarded = false,
     statusQuote = null,
+    poll,
   } = input;
 
   const realtime = getRealtime();
@@ -204,6 +219,17 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
         conversationId,
         mentionedIds,
         statusQuote,
+        ...(poll
+          ? {
+              poll: {
+                create: {
+                  question: poll.question,
+                  multiple: poll.multiple,
+                  options: { create: poll.options.map((text, position) => ({ text, position })) },
+                },
+              },
+            }
+          : {}),
         senderId,
         type,
         content,

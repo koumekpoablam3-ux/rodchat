@@ -97,6 +97,10 @@ type ChatContextValue = {
   toggleStar: (messageId: string) => Promise<string | null>;
   /** Épingle ou désépingle un message en haut de la discussion (renvoie un message d'erreur, ou null) */
   pinMessage: (messageId: string, pinned: boolean) => Promise<string | null>;
+  /** Envoie un sondage (renvoie un message d'erreur, ou null) */
+  sendPoll: (conversationId: string, poll: { question: string; options: string[]; multiple: boolean }) => Promise<string | null>;
+  /** Vote dans un sondage : mes choix remplacent les précédents (liste vide : retirer mon vote) */
+  votePoll: (messageId: string, optionIds: string[]) => Promise<string | null>;
 
   newChatOpen: boolean;
   setNewChatOpen: (open: boolean) => void;
@@ -1152,6 +1156,37 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
     return result.ok ? null : result.error;
   }, []);
 
+  const sendPoll = useCallback(
+    async (conversationId: string, poll: { question: string; options: string[]; multiple: boolean }) => {
+      const result = await apiRequest<{ message: ChatMessage }>(`/api/conversations/${conversationId}/polls`, {
+        method: "POST",
+        json: poll,
+      });
+      if (!result.ok) return result.error;
+      const message = result.data.message;
+      setMessagesByConv((prev) => ({
+        ...prev,
+        [conversationId]: upsertMessage(prev[conversationId] ?? [], message),
+      }));
+      applyConversations((list) => bumpConversation(list, message, initialMe.id, true));
+      return null;
+    },
+    [applyConversations, initialMe.id],
+  );
+
+  const votePoll = useCallback(
+    async (messageId: string, optionIds: string[]) => {
+      const result = await apiRequest<{ message: ChatMessage }>(`/api/messages/${messageId}/vote`, {
+        method: "PUT",
+        json: { optionIds },
+      });
+      if (!result.ok) return result.error;
+      applyMessageUpdate(result.data.message);
+      return null;
+    },
+    [applyMessageUpdate],
+  );
+
   // --- Mon profil ---
 
   const updateProfile = useCallback(async (patch: { displayName?: string; about?: string }) => {
@@ -1213,6 +1248,8 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       starredIds,
       toggleStar,
       pinMessage,
+      sendPoll,
+      votePoll,
       newChatOpen,
       setNewChatOpen,
     }),
@@ -1255,6 +1292,8 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       starredIds,
       toggleStar,
       pinMessage,
+      sendPoll,
+      votePoll,
       newChatOpen,
     ],
   );

@@ -26,7 +26,7 @@ type Item =
   | { kind: "message"; key: string; message: ChatMessage; showSender: boolean; tail: boolean };
 
 const NO_MESSAGES: ChatMessage[] = [];
-const DELETABLE_TYPES = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE"];
+const DELETABLE_TYPES = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "POLL"];
 
 /** Appels et messages système : lignes d'information, pas des bulles */
 const isInfoRow = (message: ChatMessage) => message.type === "CALL" || message.type === "SYSTEM";
@@ -61,6 +61,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     starredIds,
     toggleStar,
     pinMessage,
+    votePoll,
     setBlocked,
   } = useChat();
   const { startCall, startGroupCall, joinGroupCall, ongoingGroupCalls, activeGroupConversationId, inCall } = useCall();
@@ -608,6 +609,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
                 onDiscard={clientId ? () => discardMessage(conversationId, clientId) : undefined}
                 onOpenMenu={() => setMenuId(message.id)}
                 onReplyClick={(id) => void goToMessage(id)}
+                onVote={(optionIds) => votePoll(message.id, optionIds)}
                 onSwipeReply={
                   conversation.blockedByMe
                     ? undefined

@@ -14,6 +14,7 @@ enum MessageType {
   AUDIO // message vocal
   VIDEO
   FILE
+  POLL // sondage
   CALL // entrée du journal d'appels dans la discussion
   SYSTEM
 }
@@ -62,6 +63,7 @@ model User {
   blocksGiven       Block[]              @relation("BlockGiven")
   statuses          Status[]
   statusViews       StatusView[]
+  pollVotes         PollVote[]
   blocksReceived    Block[]              @relation("BlockReceived")
   // Réglages
   theme             String             @default("auto") // auto | light | dark
@@ -153,6 +155,7 @@ model Message {
   hides        MessageHide[]
   starredBy    StarredMessage[]
   attachment   Attachment?
+  poll         Poll?
   call         Call?            @relation(fields: [callId], references: [id], onDelete: SetNull)
 
   @@unique([senderId, clientId])
@@ -447,4 +450,38 @@ model AdminLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// --- Sondages : une question, 2 à 6 réponses, un ou plusieurs choix. Les votes sont visibles par les membres. ---
+model Poll {
+  messageId String  @id
+  question  String
+  multiple  Boolean @default(false)
+
+  message Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  options PollOption[]
+}
+
+model PollOption {
+  id       String @id @default(cuid())
+  pollId   String
+  text     String
+  position Int
+
+  poll  Poll       @relation(fields: [pollId], references: [messageId], onDelete: Cascade)
+  votes PollVote[]
+
+  @@index([pollId])
+}
+
+model PollVote {
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([optionId, userId])
+  @@index([userId])
 }

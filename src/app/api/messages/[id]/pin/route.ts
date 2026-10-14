@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Nombre maximal de messages épinglés par discussion : au-delà, le plus ancien est désépinglé */
 const MAX_PINNED = 3;
-const PINNABLE = ["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE"];
+const PINNABLE = ["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "POLL"];
 
 const schema = z.object({ pinned: z.boolean() });
 

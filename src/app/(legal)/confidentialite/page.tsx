@@ -86,6 +86,10 @@ export default function PrivacyPage() {
           <li>Bloquer ou signaler une personne ou un message.</li>
           <li>Déconnecter tes autres appareils et changer ton mot de passe : <em>Paramètres → Compte et sécurité</em>.</li>
           <li>
+            <strong>Récupérer tes données</strong> : <em>Paramètres → Compte et sécurité → Télécharger mes données</em> (profil,
+            discussions et tes propres messages, dans un fichier).
+          </li>
+          <li>
             <strong>Supprimer ton compte</strong> : <em>Paramètres → Compte et sécurité → Supprimer mon compte</em>. La
             suppression est définitive : ton profil, tes discussions à deux et tes messages sont effacés.
           </li>

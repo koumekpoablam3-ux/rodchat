@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Star,
 } from "lucide-react";
+import { useDataSaver } from "@/hooks/useDataSaver";
 import { useLongPress } from "@/hooks/useLongPress";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { formatBytes, formatTime } from "@/lib/format";
@@ -23,6 +24,7 @@ import { hueFromId } from "@/lib/utils";
 import type { ChatMessage } from "@/types/chat";
 import ImageViewer from "./ImageViewer";
 import LinkCard from "./LinkCard";
+import PollBlock from "./PollBlock";
 import Linkify from "./Linkify";
 import QuotedBlock from "./QuotedBlock";
 import VoicePlayer from "./VoicePlayer";
@@ -51,6 +53,8 @@ type BubbleProps = {
   onReact?: (emoji: string) => void;
   /** Glisser le message vers la droite pour y répondre (absent : le geste est désactivé) */
   onSwipeReply?: () => void;
+  /** Sondage : envoyer mes choix */
+  onVote?: (optionIds: string[]) => Promise<string | null>;
 };
 
 const STATUS_LABEL: Record<MessageStatus, string> = {
@@ -127,6 +131,7 @@ export default function MessageBubble({
   onReplyClick,
   onReact,
   onSwipeReply,
+  onVote,
 }: BubbleProps) {
   const [viewing, setViewing] = useState(false);
   const isDeleted = message.deletedAt !== null;
@@ -135,6 +140,10 @@ export default function MessageBubble({
   const press = useLongPress(() => {
     if (canOpenMenu) onOpenMenu?.();
   });
+  const dataSaver = useDataSaver();
+  const [loadAnyway, setLoadAnyway] = useState(false);
+  // Économie de données : les photos des autres attendent un toucher (les tiennes s'affichent toujours)
+  const holdImage = dataSaver.active && !loadAnyway && !mine;
   const swipe = useSwipeToReply(onSwipeReply && !isDeleted && !message.localStatus ? onSwipeReply : undefined);
 
   // Réactions regroupées par emoji
@@ -262,7 +271,21 @@ export default function MessageBubble({
         {/* Photo */}
         {message.type === "IMAGE" && media ? (
           <div className="relative">
-            {media.src ? (
+            {media.src && holdImage ? (
+              <button
+                type="button"
+                onClick={() => setLoadAnyway(true)}
+                aria-label={`Charger la photo ${media.fileName} (${formatBytes(media.size)})`}
+                className="flex h-40 w-[15rem] max-w-full flex-col items-center justify-center gap-1 bg-black/10 text-center"
+                style={{
+                  borderRadius: radius - 4,
+                  ...(media.width && media.height ? { aspectRatio: `${media.width} / ${media.height}`, height: "auto", minHeight: "8rem" } : {}),
+                }}
+              >
+                <span className="font-semibold">Toucher pour charger</span>
+                <span className="text-xs opacity-70">Photo · {formatBytes(media.size)}</span>
+              </button>
+            ) : media.src ? (
               <button
                 type="button"
                 onClick={() => setViewing(true)}
@@ -290,6 +313,14 @@ export default function MessageBubble({
           </div>
         ) : null}
 
+        {/* Sondage */}
+        {message.type === "POLL" && message.poll && !isDeleted ? (
+          <>
+            <PollBlock message={message} meId={meId} mine={mine} onVote={onVote} />
+            <p className={`flex items-center justify-end gap-1 text-[11px] leading-none ${metaTone}`}>{meta}</p>
+          </>
+        ) : null}
+
         {/* Vidéo */}
         {message.type === "VIDEO" && media ? (
           <div className="relative">
@@ -298,7 +329,7 @@ export default function MessageBubble({
                 src={media.src}
                 controls
                 playsInline
-                preload="metadata"
+                preload={dataSaver.active ? "none" : "metadata"}
                 className="block max-h-[22rem] w-full max-w-[17rem] bg-black object-contain"
                 style={{ borderRadius: radius - 4 }}
               />
@@ -359,7 +390,7 @@ export default function MessageBubble({
         {/* Texte */}
         {message.type === "TEXT" && !isDeleted ? (
           <>
-            {message.linkPreview ? <LinkCard preview={message.linkPreview} mine={mine} /> : null}
+            {message.linkPreview && !dataSaver.active ? <LinkCard preview={message.linkPreview} mine={mine} /> : null}
             <span className="whitespace-pre-wrap break-words">
               <Linkify text={message.content ?? ""} mentionable={mentionable} meUsername={meUsername} />
             </span>

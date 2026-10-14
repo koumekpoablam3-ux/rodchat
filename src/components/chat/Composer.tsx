@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { CalendarClock, FileText, ImageIcon, Mic, Paperclip, Pencil, SendHorizontal, Trash2, Video, X } from "lucide-react";
+import { BarChart3, CalendarClock, FileText, ImageIcon, Mic, Paperclip, Pencil, SendHorizontal, Trash2, Video, X } from "lucide-react";
 import { useVoiceRecorder, type VoiceRecording } from "@/hooks/useVoiceRecorder";
 import { formatDuration } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
@@ -9,6 +9,7 @@ import { MAX_MESSAGE_LENGTH } from "@/lib/limits";
 import { mentionAtCaret } from "@/lib/mentions";
 import type { ChatMessage } from "@/types/chat";
 import { useChat } from "./ChatProvider";
+import PollDialog from "./PollDialog";
 import QuotedBlock from "./QuotedBlock";
 import ScheduleDialog from "./ScheduleDialog";
 
@@ -38,6 +39,7 @@ export default function Composer({
 
   const [text, setText] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   // « @ » en cours de frappe dans un groupe : suggestions de membres
@@ -415,6 +417,18 @@ export default function Composer({
                   <FileText size={18} aria-hidden="true" />
                   Document
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={menuItem}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setPollOpen(true);
+                  }}
+                >
+                  <BarChart3 size={18} aria-hidden="true" />
+                  Sondage
+                </button>
               </div>
             ) : null}
           </div>
@@ -493,6 +507,7 @@ export default function Composer({
           )}
         </form>
       )}
+      {pollOpen ? <PollDialog conversationId={conversationId} onClose={() => setPollOpen(false)} /> : null}
       {scheduleOpen ? (
         <ScheduleDialog
           conversationId={conversationId}

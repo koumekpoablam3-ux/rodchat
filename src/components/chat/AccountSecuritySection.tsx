@@ -82,6 +82,14 @@ export default function AccountSecuritySection() {
             <span className="font-medium">Déconnecter mes autres appareils</span>
             <span className="text-sm text-muted">Utile si tu as perdu un téléphone ou utilisé un ordinateur public.</span>
           </button>
+          <a
+            href="/api/account/export"
+            download
+            className="flex w-full flex-col rounded-xl px-1 py-2.5 text-left hover:bg-bg"
+          >
+            <span className="font-medium">Télécharger mes données</span>
+            <span className="text-sm text-muted">Ton profil, tes discussions et tes messages, dans un fichier.</span>
+          </a>
           <button
             type="button"
             onClick={() => open("delete")}

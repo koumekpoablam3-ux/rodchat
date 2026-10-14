@@ -39,6 +39,8 @@ function pinnedPreview(message: { type: string; content: string | null; attachme
       return "Message vocal";
     case "FILE":
       return message.attachment?.fileName ?? "Document";
+    case "POLL":
+      return `Sondage : ${(message.content ?? "").slice(0, 80)}`;
     default:
       return "";
   }

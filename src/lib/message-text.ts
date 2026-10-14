@@ -14,6 +14,8 @@ export function describeMessage(type: MessageType, content: string | null, fileN
       return "Vidéo";
     case "FILE":
       return fileName ?? "Document";
+    case "POLL":
+      return `Sondage : ${content ?? ""}`;
     case "CALL":
       return "Appel";
     default:

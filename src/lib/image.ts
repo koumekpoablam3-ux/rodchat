@@ -1,4 +1,9 @@
+import { isDataSaverOn } from "@/hooks/useDataSaver";
+
 const MAX_SIDE = 1600;
+/** Économie de données : photos plus petites et plus compressées */
+const SAVER_SIDE = 1024;
+const SAVER_QUALITY = 0.68;
 
 export type PreparedImage = {
   blob: Blob;
@@ -24,7 +29,8 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
       return { blob: file, fileName: file.name, width, height };
     }
 
-    const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
+    const saver = isDataSaverOn();
+    const scale = Math.min(1, (saver ? SAVER_SIDE : MAX_SIDE) / Math.max(width, height));
     const targetWidth = Math.round(width * scale);
     const targetHeight = Math.round(height * scale);
 
@@ -39,11 +45,11 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
     context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
     bitmap.close();
 
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", saver ? SAVER_QUALITY : 0.82));
     if (!blob) throw new Error("compression impossible");
 
     // Si la compression n'apporte rien, on garde l'original
-    if (file.type === "image/jpeg" && blob.size >= file.size && scale === 1) {
+    if (file.type === "image/jpeg" && blob.size >= file.size && scale === 1 && !saver) {
       return { blob: file, fileName: file.name, width: targetWidth, height: targetHeight };
     }
     return { blob, fileName: `${baseName}.jpg`, width: targetWidth, height: targetHeight };

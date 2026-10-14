@@ -35,6 +35,8 @@ function previewBody(last: LastMessage) {
       return "Vidéo";
     case "FILE":
       return last.attachment?.fileName ?? "Document";
+    case "POLL":
+      return `Sondage : ${last.content ?? ""}`;
     case "CALL": {
       const kind = last.call?.kind === "VIDEO" ? "vidéo" : "audio";
       const group = last.call?.calleeId === null ? " de groupe" : "";

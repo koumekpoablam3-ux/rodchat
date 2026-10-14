@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { getRealtime } from "@/lib/realtime";
 import { getSessionUserId } from "@/lib/session";
 
-const DELETABLE_TYPES = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE"];
+const DELETABLE_TYPES = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "POLL"];
 
 async function findForMember(messageId: string, userId: string) {
   const message = await prisma.message.findUnique({
