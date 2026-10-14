@@ -16,6 +16,7 @@ import {
   Star,
 } from "lucide-react";
 import { useDataSaver } from "@/hooks/useDataSaver";
+import Avatar from "./Avatar";
 import { useLongPress } from "@/hooks/useLongPress";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { formatBytes, formatTime } from "@/lib/format";
@@ -135,7 +136,9 @@ export default function MessageBubble({
 }: BubbleProps) {
   const [viewing, setViewing] = useState(false);
   const isDeleted = message.deletedAt !== null;
-  const media = isDeleted ? null : mediaOf(message);
+  // Fichier supprimé par l'administrateur pour libérer de l'espace : le message reste, avec une mention
+  const purged = !isDeleted && Boolean(message.attachment?.purgedAt);
+  const media = isDeleted || purged ? null : mediaOf(message);
   const canOpenMenu = !!onOpenMenu && !message.localStatus;
   const press = useLongPress(() => {
     if (canOpenMenu) onOpenMenu?.();
@@ -217,7 +220,16 @@ export default function MessageBubble({
             className={`sender-name mb-0.5 text-[13px] font-semibold ${isMedia ? "px-2 pt-1" : ""}`}
             style={{ "--h": hueFromId(message.senderId) } as CSSProperties}
           >
-            {senderName}
+            <span className="inline-flex items-center gap-1.5 align-middle">
+              <Avatar
+                id={message.senderId}
+                name={senderName}
+                avatarUrl={message.sender?.avatarUrl ?? null}
+                size={20}
+                openStatusOnClick
+              />
+              {senderName}
+            </span>
           </p>
         ) : null}
 
@@ -311,6 +323,13 @@ export default function MessageBubble({
               {meta}
             </span>
           </div>
+        ) : null}
+
+        {purged ? (
+          <p className={`flex items-center gap-2 py-1 text-[14px] italic ${mine ? "text-bubble-out-ink/80" : "text-muted"}`}>
+            <Ban size={16} aria-hidden="true" className="shrink-0" />
+            Fichier supprimé pour libérer de l&apos;espace
+          </p>
         ) : null}
 
         {/* Sondage */}

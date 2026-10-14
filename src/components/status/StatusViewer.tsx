@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Send, Trash2, X } from "lucide-react";
+import { Eye, Send, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { STATUS_BACKGROUNDS } from "@/lib/status-palette";
 import type { StatusAuthor, StatusItem, StatusViewer as Viewer } from "@/types/status";
@@ -35,6 +35,8 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
   const [viewers, setViewers] = useState<Viewer[] | null>(null);
   const [error, setError] = useState("");
   const holdStart = useRef(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(false);
   const { conversations } = useChat();
   const [reply, setReply] = useState("");
   const [replyFocused, setReplyFocused] = useState(false);
@@ -70,7 +72,7 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
   nextRef.current = goNext;
 
   useEffect(() => {
-    if (paused || !item) return;
+    if (paused || !item || item.type === "VIDEO") return;
     const timer = setInterval(() => setProgress((value) => Math.min(1, value + TICK_MS / DURATION_MS)), TICK_MS);
     return () => clearInterval(timer);
   }, [paused, item]);
@@ -78,6 +80,14 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
   useEffect(() => {
     if (progress >= 1) nextRef.current();
   }, [progress]);
+
+  // Vidéo : la pause (appui maintenu, menu, écriture d'une réponse) met aussi la lecture en pause
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element) return;
+    if (paused) element.pause();
+    else void element.play().catch(() => {});
+  }, [paused, item?.id]);
 
   // Un statut de quelqu'un d'autre s'affiche : l'auteur est prévenu qu'il a été vu
   const itemId = item?.id;
@@ -202,9 +212,34 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
           >
             {item.text}
           </p>
+        ) : item.type === "VIDEO" ? (
+          <video
+            key={item.id}
+            ref={videoRef}
+            src={item.mediaUrl ?? ""}
+            className="h-full w-full object-contain"
+            autoPlay
+            playsInline
+            muted={muted}
+            onLoadedData={(event) => {
+              // Certains navigateurs refusent le son quand la vidéo démarre toute seule : on retente sans le son
+              const element = event.currentTarget;
+              element.play().catch(() => {
+                element.muted = true;
+                setMuted(true);
+                element.play().catch(() => {});
+              });
+            }}
+            onTimeUpdate={(event) => {
+              const element = event.currentTarget;
+              // On n'atteint 1 qu'à la fin réelle (onEnded), pour ne pas passer deux fois au statut suivant
+              if (element.duration) setProgress(Math.min(0.999, element.currentTime / element.duration));
+            }}
+            onEnded={() => nextRef.current()}
+          />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.imageUrl ?? ""} alt="" className="h-full w-full object-contain" draggable={false} />
+          <img src={item.mediaUrl ?? ""} alt="" className="h-full w-full object-contain" draggable={false} />
         )}
       </div>
 
@@ -230,6 +265,17 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
             <p className="truncate font-display font-semibold">{group.mine ? "Mon statut" : group.user.displayName}</p>
             <p className="text-xs text-white/75">{statusTime(item.createdAt)}</p>
           </div>
+          {item.type === "VIDEO" ? (
+            <button
+              type="button"
+              aria-label={muted ? "Activer le son" : "Couper le son"}
+              aria-pressed={muted}
+              onClick={() => setMuted((value) => !value)}
+              className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/15"
+            >
+              {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+            </button>
+          ) : null}
           <button
             type="button"
             aria-label="Fermer"
@@ -244,7 +290,7 @@ export default function StatusViewer({ groups, startGroup, onViewed, onChanged, 
       <div className="relative flex-1" />
 
       {/* Légende d'une photo */}
-      {item.type === "IMAGE" && item.text ? (
+      {item.type !== "TEXT" && item.text ? (
         <p className="pointer-events-none relative bg-gradient-to-t from-black/70 to-transparent px-6 pb-4 pt-10 text-center text-[15px]">
           {item.text}
         </p>

@@ -186,6 +186,7 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
                 isGroup={isGroup}
                 size={112}
                 online={other ? onlineIds.has(other.id) : false}
+                openStatusOnClick
               />
             )}
             {!canEditGroup ? (
@@ -363,7 +364,7 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
                   return (
                     <li key={member.id}>
                       <div className="flex items-center gap-3 rounded-xl px-3 py-2">
-                        <Avatar id={member.id} name={member.displayName} avatarUrl={member.avatarUrl} size={40} online={onlineIds.has(member.id)} />
+                        <Avatar id={member.id} name={member.displayName} avatarUrl={member.avatarUrl} size={40} online={onlineIds.has(member.id)} openStatusOnClick />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-display font-semibold">
                             {itsMe ? "Toi" : member.displayName}

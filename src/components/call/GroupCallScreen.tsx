@@ -133,7 +133,7 @@ export default function GroupCallScreen({
 
       {ringing ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-          {call.from ? <Avatar id={call.from.id} name={call.from.name} avatarUrl={call.from.avatarUrl} size={112} /> : null}
+          {call.from ? <Avatar id={call.from.id} name={call.from.name} avatarUrl={call.from.avatarUrl} size={112} noStatusRing /> : null}
           <p className="font-display text-2xl font-bold">{call.from?.name ?? "Quelqu'un"}</p>
           <p className="text-white/75">t&apos;invite à un appel dans « {call.groupName} »</p>
         </div>

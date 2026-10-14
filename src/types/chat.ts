@@ -39,6 +39,8 @@ export type AttachmentInfo = {
   durationMs: number | null;
   width: number | null;
   height: number | null;
+  /** Fichier supprimé par l'administrateur pour libérer de l'espace (le message reste) */
+  purgedAt?: string | null;
 };
 
 export type CallInfo = {

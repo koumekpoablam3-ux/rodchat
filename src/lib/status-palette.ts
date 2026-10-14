@@ -13,3 +13,7 @@ export const STATUS_BACKGROUNDS: { from: string; to: string; ink: string }[] = [
 export const STATUS_TTL_MS = 24 * 60 * 60 * 1000;
 export const MAX_STATUS_TEXT = 700;
 export const MAX_STATUS_CAPTION = 200;
+
+/** Durée maximale d'une vidéo de statut (le fichier doit aussi rester sous la limite d'envoi) */
+export const MAX_STATUS_VIDEO_SECONDS = 30;
+export const STATUS_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];

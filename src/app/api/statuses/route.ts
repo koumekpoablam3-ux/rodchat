@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { badRequest, unauthorized } from "@/lib/api";
-import { matchesImageSignature } from "@/lib/image-signature";
+import { matchesImageSignature, matchesVideoSignature, VIDEO_TYPES } from "@/lib/image-signature";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 import { MAX_STATUS_CAPTION, MAX_STATUS_TEXT, STATUS_BACKGROUNDS, STATUS_TTL_MS } from "@/lib/status-palette";
+import { background } from "@/lib/background";
+import { maybeAutoCleanup } from "@/lib/storage";
 import { notifyStatusChange, statusContactIds } from "@/lib/statuses";
 import type { StatusFeed, StatusItem } from "@/types/status";
 
@@ -53,7 +55,7 @@ export async function GET() {
       type: row.type,
       text: row.text,
       background: row.background,
-      imageUrl: row.type === "IMAGE" ? `/api/statuses/${row.id}/image` : null,
+      mediaUrl: row.type === "TEXT" ? null : `/api/statuses/${row.id}/image`,
       width: row.image?.width ?? null,
       height: row.image?.height ?? null,
       createdAt: row.createdAt.toISOString(),
@@ -109,22 +111,31 @@ export async function POST(req: Request) {
     });
     id = status.id;
   } else {
-    if (!IMAGE_TYPES.includes(contentType)) {
+    const isVideo = VIDEO_TYPES.includes(contentType);
+    if (!IMAGE_TYPES.includes(contentType) && !isVideo) {
       return NextResponse.json(
-        { error: "Format d'image non pris en charge. Utilise JPEG, PNG, WebP ou GIF." },
+        { error: "Format non pris en charge. Utilise une photo (JPEG, PNG, WebP, GIF) ou une vidéo (MP4, MOV, WebM)." },
         { status: 415 },
       );
     }
     const tooLarge = () =>
-      NextResponse.json({ error: `Cette photo dépasse la limite de ${MAX_UPLOAD_MB} Mo.` }, { status: 413 });
+      NextResponse.json(
+        {
+          error: isVideo
+            ? `Cette vidéo dépasse ${MAX_UPLOAD_MB} Mo. Choisis une vidéo plus courte (environ 10 à 15 secondes).`
+            : `Cette photo dépasse la limite de ${MAX_UPLOAD_MB} Mo.`,
+        },
+        { status: 413 },
+      );
     const declared = Number(req.headers.get("content-length"));
     if (Number.isFinite(declared) && declared > MAX_UPLOAD_BYTES) return tooLarge();
 
     const buffer = await req.arrayBuffer();
-    if (buffer.byteLength === 0) return badRequest("La photo est vide.");
+    if (buffer.byteLength === 0) return badRequest("Le fichier est vide.");
     if (buffer.byteLength > MAX_UPLOAD_BYTES) return tooLarge();
     const data = new Uint8Array(buffer);
-    if (!matchesImageSignature(data, contentType)) return badRequest("Ce fichier n'est pas une image valide.");
+    const valid = isVideo ? matchesVideoSignature(data, contentType) : matchesImageSignature(data, contentType);
+    if (!valid) return badRequest(isVideo ? "Ce fichier n'est pas une vidéo valide." : "Ce fichier n'est pas une image valide.");
 
     let caption = "";
     try {
@@ -136,7 +147,7 @@ export async function POST(req: Request) {
     const status = await prisma.status.create({
       data: {
         authorId: userId,
-        type: "IMAGE",
+        type: isVideo ? "VIDEO" : "IMAGE",
         text: caption || null,
         expiresAt,
         image: {
@@ -155,5 +166,6 @@ export async function POST(req: Request) {
   }
 
   await notifyStatusChange(userId);
+  background(maybeAutoCleanup().catch((error) => console.error("[storage]", error)));
   return NextResponse.json({ ok: true, id }, { status: 201 });
 }

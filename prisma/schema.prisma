@@ -224,6 +224,8 @@ model Attachment {
   height     Int?
   data       Bytes
   createdAt  DateTime @default(now())
+  // Fichier supprimé pour libérer de l'espace : le message reste, ses octets sont vidés
+  purgedAt   DateTime?
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 }
@@ -347,6 +349,7 @@ model Block {
 enum StatusType {
   TEXT
   IMAGE
+  VIDEO
 }
 
 model Status {

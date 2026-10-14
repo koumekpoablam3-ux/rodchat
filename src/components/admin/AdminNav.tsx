@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/admin/metrics", label: "Indicateurs" },
   { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/groups", label: "Groupes" },
+  { href: "/admin/storage", label: "Stockage" },
   { href: "/admin/reports", label: "Signalements" },
   { href: "/admin/settings", label: "Réglages" },
   { href: "/admin/logs", label: "Journal" },

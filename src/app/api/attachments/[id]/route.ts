@@ -15,11 +15,15 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       fileName: true,
       mimeType: true,
       size: true,
+      purgedAt: true,
       data: true,
       message: { select: { conversationId: true, type: true } },
     },
   });
   if (!attachment) return notFound("Ce fichier n'existe plus.");
+  if (attachment.purgedAt) {
+    return NextResponse.json({ error: "Ce fichier a été supprimé pour libérer de l'espace." }, { status: 410 });
+  }
 
   const member = await prisma.participant.findUnique({
     where: { userId_conversationId: { userId, conversationId: attachment.message.conversationId } },

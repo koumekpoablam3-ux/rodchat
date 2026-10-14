@@ -6,13 +6,13 @@ import type { StatusAuthor, StatusFeed, StatusGroup, StatusItem } from "@/types/
 import Avatar from "../chat/Avatar";
 import { useChat } from "../chat/ChatProvider";
 import StatusComposer from "./StatusComposer";
-import StatusViewer, { type ViewerGroup } from "./StatusViewer";
+import { useStatuses } from "./StatusProvider";
+import type { ViewerGroup } from "./StatusViewer";
 import { statusTime } from "./time";
 
 type PanelProps = {
   feed: StatusFeed | null;
   reload: () => Promise<void>;
-  markViewed: (statusId: string) => void;
   onClose: () => void;
 };
 
@@ -31,11 +31,11 @@ function lastOf(items: StatusItem[]) {
 }
 
 /** Fenêtre « Statuts » : le mien, puis ceux de mes contacts (non vus d'abord) */
-export default function StatusPanel({ feed, reload, markViewed, onClose }: PanelProps) {
+export default function StatusPanel({ feed, reload, onClose }: PanelProps) {
   const { me } = useChat();
   const [composing, setComposing] = useState(false);
-  // Le lecteur travaille sur une copie : si un contact publie pendant la lecture, rien ne se décale
-  const [viewer, setViewer] = useState<{ groups: ViewerGroup[]; index: number } | null>(null);
+  // Le lecteur (plein écran) est tenu par le fournisseur : il peut aussi s'ouvrir depuis une photo de profil
+  const statuses = useStatuses();
 
   useEffect(() => {
     void reload();
@@ -43,11 +43,11 @@ export default function StatusPanel({ feed, reload, markViewed, onClose }: Panel
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !composing && !viewer) onClose();
+      if (event.key === "Escape" && !composing) onClose();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose, composing, viewer]);
+  }, [onClose, composing]);
 
   const mine = feed?.mine ?? [];
   const recent = (feed?.groups ?? []).filter((group) => group.unseen > 0);
@@ -56,12 +56,12 @@ export default function StatusPanel({ feed, reload, markViewed, onClose }: Panel
 
   function openMine() {
     if (mine.length === 0) return setComposing(true);
-    setViewer({ groups: [{ user: meAuthor, items: mine, mine: true }], index: 0 });
+    statuses?.openViewer([{ user: meAuthor, items: mine, mine: true }], 0);
   }
 
   function openGroup(group: StatusGroup) {
     const groups: ViewerGroup[] = [...recent, ...seen].map((g) => ({ user: g.user, items: g.items, mine: false }));
-    setViewer({ groups, index: groups.findIndex((g) => g.user.id === group.user.id) });
+    statuses?.openViewer(groups, groups.findIndex((g) => g.user.id === group.user.id));
   }
 
   const row = "flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-bg focus-visible:bg-bg";
@@ -115,7 +115,7 @@ export default function StatusPanel({ feed, reload, markViewed, onClose }: Panel
                 <span className="block truncate text-sm text-muted">
                   {mine.length > 0
                     ? `${mine.length} statut${mine.length > 1 ? "s" : ""} · ${statusTime(lastOf(mine).createdAt)}`
-                    : "Partage un texte ou une photo pendant 24 h"}
+                    : "Partage un texte, une photo ou une vidéo pendant 24 h"}
                 </span>
               </span>
             </button>
@@ -166,16 +166,6 @@ export default function StatusPanel({ feed, reload, markViewed, onClose }: Panel
             setComposing(false);
             void reload();
           }}
-        />
-      ) : null}
-
-      {viewer ? (
-        <StatusViewer
-          groups={viewer.groups}
-          startGroup={viewer.index}
-          onViewed={markViewed}
-          onChanged={() => void reload()}
-          onClose={() => setViewer(null)}
         />
       ) : null}
     </div>

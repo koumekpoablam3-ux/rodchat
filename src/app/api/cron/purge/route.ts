@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { purgeExpiredMessages } from "@/lib/expiry";
 import { purgeOldEvents } from "@/lib/realtime";
 import { sendDueScheduledMessages } from "@/lib/scheduled";
+import { maybeAutoCleanup } from "@/lib/storage";
 
 // Messages éphémères et ménage du temps réel. Les flux temps réel s'en chargent déjà toutes les minutes tant que
 // quelqu'un est connecté ; cette tâche planifiée par Vercel (vercel.json, une fois par jour) nettoie le reste.
@@ -14,5 +15,7 @@ export async function GET(req: Request) {
   const purged = await purgeExpiredMessages();
   await purgeOldEvents();
   await sendDueScheduledMessages();
+  // Vérification quotidienne de l'espace, même si personne n'a envoyé de fichier
+  await maybeAutoCleanup({ force: true });
   return NextResponse.json({ purged });
 }

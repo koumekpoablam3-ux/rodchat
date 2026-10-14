@@ -1,10 +1,11 @@
 export type StatusItem = {
   id: string;
-  type: "TEXT" | "IMAGE";
+  type: "TEXT" | "IMAGE" | "VIDEO";
   /** Texte du statut, ou légende de la photo */
   text: string | null;
   background: number;
-  imageUrl: string | null;
+  /** Photo ou vidéo du statut (absent pour un texte) */
+  mediaUrl: string | null;
   width: number | null;
   height: number | null;
   createdAt: string;

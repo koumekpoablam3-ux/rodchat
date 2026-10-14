@@ -40,14 +40,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       createdAt: true,
       sender: { select: { displayName: true } },
       attachment: {
-        select: { id: true, fileName: true, mimeType: true, size: true, durationMs: true, width: true, height: true },
+        select: { id: true, fileName: true, mimeType: true, size: true, durationMs: true, width: true, height: true, purgedAt: true },
       },
     },
   });
 
   const items = rows
     .slice(0, PAGE_SIZE)
-    .filter((row) => row.attachment !== null)
+    .filter((row) => row.attachment !== null && row.attachment.purgedAt === null)
     .map((row) => ({
       messageId: row.id,
       senderId: row.senderId,

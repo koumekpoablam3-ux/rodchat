@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { badRequest, forbidden, unauthorized } from "@/lib/api";
 import { matchesImageSignature } from "@/lib/image-signature";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
+import { background } from "@/lib/background";
+import { maybeAutoCleanup } from "@/lib/storage";
 import { postMessage } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { BlockedError, blockedMessage } from "@/lib/blocks";
@@ -107,6 +109,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         data,
       },
     });
+    // Après un envoi, on vérifie si l'espace se remplit (au plus une vérification toutes les 5 minutes)
+    background(maybeAutoCleanup().catch((error) => console.error("[storage]", error)));
     return NextResponse.json({ message }, { status: 201 });
   } catch (error) {
     if (error instanceof BlockedError) return NextResponse.json({ error: blockedMessage(error.byMe) }, { status: 403 });

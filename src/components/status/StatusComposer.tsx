@@ -4,16 +4,41 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Type, X } from "lucide-react";
 import { prepareImage, type PreparedImage } from "@/lib/image";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
-import { MAX_STATUS_CAPTION, MAX_STATUS_TEXT, STATUS_BACKGROUNDS } from "@/lib/status-palette";
+import {
+  MAX_STATUS_CAPTION,
+  MAX_STATUS_TEXT,
+  MAX_STATUS_VIDEO_SECONDS,
+  STATUS_BACKGROUNDS,
+  STATUS_VIDEO_TYPES,
+} from "@/lib/status-palette";
+
+/** Lit la durée et les dimensions d'une vidéo sans la charger en entier */
+function readVideo(file: File): Promise<{ width: number; height: number; seconds: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const element = document.createElement("video");
+    element.preload = "metadata";
+    element.onloadedmetadata = () => {
+      resolve({ width: element.videoWidth, height: element.videoHeight, seconds: element.duration });
+      URL.revokeObjectURL(url);
+    };
+    element.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("vidéo illisible"));
+    };
+    element.src = url;
+  });
+}
 
 type ComposerProps = { onClose: () => void; onPublished: () => void };
 
-/** Création d'un statut : un texte sur fond coloré, ou une photo avec légende */
+/** Création d'un statut : un texte sur fond coloré, ou une photo / une vidéo avec légende */
 export default function StatusComposer({ onClose, onPublished }: ComposerProps) {
   const [mode, setMode] = useState<"text" | "photo">("text");
   const [text, setText] = useState("");
   const [background, setBackground] = useState(0);
   const [photo, setPhoto] = useState<PreparedImage | null>(null);
+  const [video, setVideo] = useState<{ file: File; width: number; height: number; seconds: number } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,16 +47,17 @@ export default function StatusComposer({ onClose, onPublished }: ComposerProps) 
 
   const palette = STATUS_BACKGROUNDS[background];
 
-  // L'aperçu de la photo est libéré quand on en change ou qu'on ferme
+  // L'aperçu (photo ou vidéo) est libéré quand on en change ou qu'on ferme
   useEffect(() => {
-    if (!photo) {
+    const source = photo?.blob ?? video?.file ?? null;
+    if (!source) {
       setPreviewUrl(null);
       return;
     }
-    const url = URL.createObjectURL(photo.blob);
+    const url = URL.createObjectURL(source);
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [photo]);
+  }, [photo, video]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -46,17 +72,37 @@ export default function StatusComposer({ onClose, onPublished }: ComposerProps) 
     event.target.value = "";
     if (!file) return;
     setError("");
-    if (!file.type.startsWith("image/")) return setError("Choisis une image.");
+
+    if (file.type.startsWith("video/")) {
+      if (!STATUS_VIDEO_TYPES.includes(file.type)) return setError("Format de vidéo non pris en charge (MP4, MOV ou WebM).");
+      if (file.size > MAX_UPLOAD_BYTES) {
+        return setError(`Cette vidéo pèse ${(file.size / 1024 / 1024).toFixed(1)} Mo : la limite est ${MAX_UPLOAD_MB} Mo. Choisis une vidéo plus courte (environ 10 à 15 secondes).`);
+      }
+      try {
+        const meta = await readVideo(file);
+        if (meta.seconds > MAX_STATUS_VIDEO_SECONDS + 0.5) {
+          return setError(`Cette vidéo dure ${Math.round(meta.seconds)} s : la limite est de ${MAX_STATUS_VIDEO_SECONDS} s.`);
+        }
+        setPhoto(null);
+        setVideo({ file, ...meta });
+      } catch {
+        setError("Impossible de lire cette vidéo.");
+      }
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) return setError("Choisis une photo ou une vidéo.");
     try {
       const prepared = await prepareImage(file);
       if (prepared.blob.size > MAX_UPLOAD_BYTES) return setError(`Cette photo dépasse ${MAX_UPLOAD_MB} Mo.`);
+      setVideo(null);
       setPhoto(prepared);
     } catch {
       setError("Impossible de lire cette photo.");
     }
   }
 
-  const canPublish = !busy && (mode === "text" ? text.trim().length > 0 : photo !== null);
+  const canPublish = !busy && (mode === "text" ? text.trim().length > 0 : photo !== null || video !== null);
 
   async function publish() {
     if (!canPublish) return;
@@ -73,12 +119,12 @@ export default function StatusComposer({ onClose, onPublished }: ComposerProps) 
           : await fetch("/api/statuses", {
               method: "POST",
               headers: {
-                "Content-Type": photo?.blob.type || "image/jpeg",
-                "x-width": String(photo?.width ?? ""),
-                "x-height": String(photo?.height ?? ""),
+                "Content-Type": video ? video.file.type : photo?.blob.type || "image/jpeg",
+                "x-width": String(video?.width ?? photo?.width ?? ""),
+                "x-height": String(video?.height ?? photo?.height ?? ""),
                 "x-caption": encodeURIComponent(caption.trim()),
               },
-              body: photo?.blob,
+              body: video ? video.file : photo?.blob,
             });
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -123,7 +169,7 @@ export default function StatusComposer({ onClose, onPublished }: ComposerProps) 
             <Type size={18} aria-hidden="true" /> Texte
           </button>
           <button type="button" className={tab(mode === "photo")} onClick={() => setMode("photo")}>
-            <ImagePlus size={18} aria-hidden="true" /> Photo
+            <ImagePlus size={18} aria-hidden="true" /> Photo / vidéo
           </button>
         </div>
         <button
@@ -169,8 +215,12 @@ export default function StatusComposer({ onClose, onPublished }: ComposerProps) 
         <>
           <div className="flex min-h-0 flex-1 items-center justify-center px-3">
             {previewUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="Aperçu du statut" className="max-h-full max-w-full rounded-xl object-contain" />
+              video ? (
+                <video src={previewUrl} controls playsInline muted className="max-h-full max-w-full rounded-xl object-contain" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={previewUrl} alt="Aperçu du statut" className="max-h-full max-w-full rounded-xl object-contain" />
+              )
             ) : (
               <button
                 type="button"
@@ -178,7 +228,8 @@ export default function StatusComposer({ onClose, onPublished }: ComposerProps) 
                 className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-white/30 px-10 py-12 text-white/80 hover:bg-white/5"
               >
                 <ImagePlus size={36} aria-hidden="true" />
-                <span className="font-semibold">Choisir une photo</span>
+                <span className="font-semibold">Choisir une photo ou une vidéo</span>
+                <span className="text-xs opacity-70">Vidéo : {MAX_STATUS_VIDEO_SECONDS} s et {MAX_UPLOAD_MB} Mo maximum</span>
               </button>
             )}
           </div>
@@ -201,7 +252,7 @@ export default function StatusComposer({ onClose, onPublished }: ComposerProps) 
               className="h-11 min-w-0 flex-1 rounded-xl bg-white/15 px-4 text-sm text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
             />
           </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={choosePhoto} />
+          <input ref={fileRef} type="file" accept="image/*,video/mp4,video/quicktime,video/webm" className="hidden" onChange={choosePhoto} />
         </>
       )}
 

@@ -108,7 +108,7 @@ export default function CallScreen({
       {/* Au centre : l'avatar tant qu'il n'y a pas d'image de l'autre personne */}
       {!remoteHasVideo ? (
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-          <Avatar id={call.peer.id} name={call.peer.name} avatarUrl={call.peer.avatarUrl} size={120} />
+          <Avatar id={call.peer.id} name={call.peer.name} avatarUrl={call.peer.avatarUrl} size={120} noStatusRing />
           <div>
             <p className="font-display text-3xl font-bold">{call.peer.name}</p>
             <p className="mt-1 text-lg text-white/75" role="status" aria-live="polite">

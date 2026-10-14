@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { CircleDashed, MessageSquare, Phone, Settings, Star } from "lucide-react";
 import StatusPanel from "@/components/status/StatusPanel";
-import { useStatusFeed } from "@/components/status/useStatusFeed";
+import { useStatuses } from "@/components/status/StatusProvider";
 import { isMuted } from "@/lib/conversation-sort";
 import Avatar from "./Avatar";
 import { useChat } from "./ChatProvider";
@@ -66,7 +66,8 @@ function NavItem({ label, onClick, active, badge, dot, desktopOnly, children }: 
  */
 export default function NavRail({ tab, onTab }: { tab: SidebarTab; onTab: (tab: SidebarTab) => void }) {
   const { me, conversations } = useChat();
-  const { feed, reload, markViewed } = useStatusFeed();
+  const statuses = useStatuses();
+  const feed = statuses?.feed ?? null;
   const [statusOpen, setStatusOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -112,7 +113,7 @@ export default function NavRail({ tab, onTab }: { tab: SidebarTab; onTab: (tab: 
       </div>
 
       {statusOpen ? (
-        <StatusPanel feed={feed} reload={reload} markViewed={markViewed} onClose={() => setStatusOpen(false)} />
+        <StatusPanel feed={feed} reload={statuses?.reload ?? (async () => {})} onClose={() => setStatusOpen(false)} />
       ) : null}
       {starredOpen ? <StarredDialog onClose={() => setStarredOpen(false)} /> : null}
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}

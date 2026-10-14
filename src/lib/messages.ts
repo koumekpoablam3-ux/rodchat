@@ -32,6 +32,7 @@ export const messageInclude = {
       durationMs: true,
       width: true,
       height: true,
+      purgedAt: true,
     },
   },
   poll: {

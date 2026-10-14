@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import CallProvider from "@/components/call/CallProvider";
+import StatusProvider from "@/components/status/StatusProvider";
 import AnnouncementBanner from "./AnnouncementBanner";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import NewChatDialog from "./NewChatDialog";
@@ -16,12 +17,14 @@ export default function ChatShell({ children }: { children: React.ReactNode }) {
 
   return (
     <CallProvider>
+      <StatusProvider>
       <div className="flex h-dvh overflow-hidden bg-bg" style={{ height: "var(--app-height, 100dvh)" }}>
         <Sidebar visibleOnMobile={isRoot} />
         <main className={`${isRoot ? "hidden" : "flex"} min-w-0 flex-1 flex-col md:flex`}>{children}</main>
         <NewChatDialog />
         <AnnouncementBanner />
       </div>
+      </StatusProvider>
     </CallProvider>
   );
 }
