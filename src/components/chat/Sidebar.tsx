@@ -10,6 +10,7 @@ import { isMuted } from "@/lib/conversation-sort";
 import { formatDuration, formatListDate } from "@/lib/format";
 import type { ConversationSummary } from "@/types/chat";
 import { LogoMark } from "@/components/Logo";
+import { useDrafts } from "@/lib/drafts";
 import AppMenu from "./AppMenu";
 import Avatar from "./Avatar";
 import CallsPane from "./CallsPane";
@@ -68,10 +69,12 @@ type RowProps = {
   typing: boolean;
   online: boolean;
   meId: string;
+  /** Message commencé mais pas envoyé dans cette discussion */
+  draft?: string;
   onOpenMenu: () => void;
 };
 
-function ConversationRow({ conversation, active, typing, online, meId, onOpenMenu }: RowProps) {
+function ConversationRow({ conversation, active, typing, online, meId, draft, onOpenMenu }: RowProps) {
   const press = useLongPress(onOpenMenu);
   const unread = conversation.unreadCount;
   const muted = isMuted(conversation.mutedUntil);
@@ -110,7 +113,16 @@ function ConversationRow({ conversation, active, typing, online, meId, onOpenMen
                 typing ? "font-medium text-brand" : unread > 0 && !muted ? "text-ink" : "text-muted"
               }`}
             >
-              {typing ? "écrit…" : preview(conversation, meId)}
+              {typing ? (
+                "écrit…"
+              ) : draft && !active ? (
+                <>
+                  <span className="font-semibold text-accent">Brouillon : </span>
+                  {draft}
+                </>
+              ) : (
+                preview(conversation, meId)
+              )}
             </p>
             <span className="flex shrink-0 items-center gap-1.5 text-muted">
               {muted ? <BellOff size={14} aria-label="En sourdine" /> : null}
@@ -138,6 +150,7 @@ function ConversationRow({ conversation, active, typing, online, meId, onOpenMen
 
 export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean }) {
   const pathname = usePathname();
+  const drafts = useDrafts();
   const router = useRouter();
   const { me, conversations, onlineIds, typingByConv, setNewChatOpen, updateConversationSettings } = useChat();
   const [tab, setTab] = useState<SidebarTab>("chats");
@@ -323,6 +336,7 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
                 conversation={conversation}
                 active={pathname === `/chat/${conversation.id}`}
                 typing={(typingByConv[conversation.id] ?? []).length > 0}
+                draft={drafts[conversation.id]}
                 online={
                   !conversation.isGroup &&
                   conversation.otherUserId !== null &&

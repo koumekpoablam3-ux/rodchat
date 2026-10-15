@@ -17,6 +17,7 @@ import ConversationSearch from "./ConversationSearch";
 import ForwardDialog from "./ForwardDialog";
 import MessageBubble from "./MessageBubble";
 import MessageMenu from "./MessageMenu";
+import MessageInfoDialog from "./MessageInfoDialog";
 import ReportDialog from "./ReportDialog";
 import SystemRow from "./SystemRow";
 
@@ -99,6 +100,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const [toast, setToast] = useState("");
   const [pinIndex, setPinIndex] = useState(0);
   const [reportMessageId, setReportMessageId] = useState<string | null>(null);
+  const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -671,7 +673,11 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       ) : null}
 
-      {conversation?.blockedByMe && conversation.otherUserId ? (
+      {conversation?.isGroup && conversation.adminsOnly && conversation.myRole !== "ADMIN" ? (
+        <div className="border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-sm text-muted">
+          Seuls les admins peuvent envoyer des messages dans ce groupe.
+        </div>
+      ) : conversation?.blockedByMe && conversation.otherUserId ? (
         <div className="flex items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <p className="text-sm text-muted">Tu as bloqué {conversation.name}.</p>
           <button
@@ -694,6 +700,8 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           onCancelEdit={() => setEditingId(null)}
         />
       )}
+
+      {infoMessageId ? <MessageInfoDialog messageId={infoMessageId} onClose={() => setInfoMessageId(null)} /> : null}
 
       {reportMessageId ? (
         <ReportDialog messageId={reportMessageId} name="ce message" onClose={() => setReportMessageId(null)} />
@@ -733,6 +741,10 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           onReport={() => {
             closeMenu();
             setReportMessageId(menuMessage.id);
+          }}
+          onInfo={() => {
+            closeMenu();
+            setInfoMessageId(menuMessage.id);
           }}
           onForward={() => {
             closeMenu();

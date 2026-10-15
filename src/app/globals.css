@@ -69,6 +69,87 @@
   --wallpaper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.045)' stroke-width='1.5'%3E%3Cpath d='M32 10 L44 22 L32 34 L20 22 Z'/%3E%3Cpath d='M0 54 L8 46 L16 54 L24 46 L32 54 L40 46 L48 54 L56 46 L64 54'/%3E%3C/g%3E%3Cg fill='rgba(255,255,255,0.045)'%3E%3Ccircle cx='4' cy='12' r='1.6'/%3E%3Ccircle cx='60' cy='38' r='1.6'/%3E%3C/g%3E%3C/svg%3E");
 }
 
+/* ---------- Couleurs d'interface (réglages) : elles remplacent seulement la couleur de marque et celle des messages envoyés ---------- */
+/* Couleur « ocean » : clair, puis sombre (réglage du système), puis sombre choisi */
+:root[data-palette="ocean"] {
+  --brand: 18 58 110;
+  --bubble-out: 18 58 110;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="ocean"]:not([data-theme="light"]) {
+    --brand: 96 165 250;
+    --bubble-out: 30 64 120;
+  }
+}
+:root[data-palette="ocean"][data-theme="dark"] {
+  --brand: 96 165 250;
+  --bubble-out: 30 64 120;
+}
+
+/* Couleur « foret » : clair, puis sombre (réglage du système), puis sombre choisi */
+:root[data-palette="foret"] {
+  --brand: 21 83 62;
+  --bubble-out: 21 83 62;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="foret"]:not([data-theme="light"]) {
+    --brand: 52 211 153;
+    --bubble-out: 20 90 70;
+  }
+}
+:root[data-palette="foret"][data-theme="dark"] {
+  --brand: 52 211 153;
+  --bubble-out: 20 90 70;
+}
+
+/* Couleur « framboise » : clair, puis sombre (réglage du système), puis sombre choisi */
+:root[data-palette="framboise"] {
+  --brand: 157 23 77;
+  --bubble-out: 157 23 77;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="framboise"]:not([data-theme="light"]) {
+    --brand: 244 114 182;
+    --bubble-out: 131 24 67;
+  }
+}
+:root[data-palette="framboise"][data-theme="dark"] {
+  --brand: 244 114 182;
+  --bubble-out: 131 24 67;
+}
+
+/* Couleur « ardoise » : clair, puis sombre (réglage du système), puis sombre choisi */
+:root[data-palette="ardoise"] {
+  --brand: 51 65 85;
+  --bubble-out: 51 65 85;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="ardoise"]:not([data-theme="light"]) {
+    --brand: 148 163 184;
+    --bubble-out: 51 65 85;
+  }
+}
+:root[data-palette="ardoise"][data-theme="dark"] {
+  --brand: 148 163 184;
+  --bubble-out: 51 65 85;
+}
+
+/* Couleur « terre » : clair, puis sombre (réglage du système), puis sombre choisi */
+:root[data-palette="terre"] {
+  --brand: 154 52 18;
+  --bubble-out: 154 52 18;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="terre"]:not([data-theme="light"]) {
+    --brand: 251 146 60;
+    --bubble-out: 124 45 18;
+  }
+}
+:root[data-palette="terre"][data-theme="dark"] {
+  --brand: 251 146 60;
+  --bubble-out: 124 45 18;
+}
+
 html,
 body {
   height: 100%;
@@ -389,4 +470,14 @@ html[data-splash="off"] .splash {
     animation: none;
     opacity: 1;
   }
+}
+
+
+/* ---------- Verrouillage : la page est masquée dès le premier affichage, avant même que l'écran du code n'apparaisse ---------- */
+html[data-locked="1"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgb(var(--bg));
 }

@@ -101,7 +101,7 @@ async function sendMessage(userId: string, data: Data): Promise<Ack> {
     });
     return { ok: true, message };
   } catch (error) {
-    if (error instanceof BlockedError) return { ok: false, error: blockedMessage(error.byMe) };
+    if (error instanceof BlockedError) return { ok: false, error: error.userMessage };
     throw error;
   }
 }

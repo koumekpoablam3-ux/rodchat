@@ -10,6 +10,7 @@ import Avatar from "./Avatar";
 import { useChat } from "./ChatProvider";
 import ProfileDialog from "./ProfileDialog";
 import SettingsDialog from "./SettingsDialog";
+import { removeLock } from "@/lib/app-lock";
 import StarredDialog from "./StarredDialog";
 
 const itemClass =
@@ -56,6 +57,7 @@ export default function AppMenu() {
   }, [open]);
 
   async function logout() {
+    removeLock(); // le code de verrouillage n'a plus de sens une fois déconnecté
     setOpen(false);
     getSocket().disconnect();
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});

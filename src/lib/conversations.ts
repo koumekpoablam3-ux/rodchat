@@ -138,6 +138,7 @@ async function buildSummary(
     participants: conv.participants.map((p) => ({ ...serializeUser(p.user), role: p.role })),
     otherUserId: other?.id ?? null,
     blockedByMe: other ? blockedIds.has(other.id) : false,
+    adminsOnly: conv.adminsOnly,
     myRole: mine?.role ?? "MEMBER",
     disappearingSeconds: conv.disappearingSeconds,
     pinnedAt: mine?.pinnedAt ? mine.pinnedAt.toISOString() : null,

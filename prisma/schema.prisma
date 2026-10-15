@@ -80,6 +80,8 @@ model User {
 model Conversation {
   id            String   @id @default(cuid())
   isGroup       Boolean  @default(false)
+  // Groupe en « mode annonce » : seuls les admins peuvent envoyer des messages
+  adminsOnly   Boolean  @default(false)
   name          String? // groupes uniquement
   description   String? // groupes uniquement
   avatarUrl     String?

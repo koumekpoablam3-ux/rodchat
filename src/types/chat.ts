@@ -143,6 +143,8 @@ export type ConversationSummary = {
   disappearingSeconds: number | null;
   /** En 1-à-1 : j'ai bloqué l'autre personne (on n'indique jamais l'inverse) */
   blockedByMe: boolean;
+  /** Groupe en mode annonce : seuls les admins peuvent écrire */
+  adminsOnly: boolean;
   /** Groupe : un message non lu me cite par « @pseudo » */
   hasUnreadMention: boolean;
   /** Messages épinglés, le plus récemment épinglé en premier */
@@ -193,3 +195,13 @@ export type OngoingGroupCall = {
 };
 
 export type CallPerson = { id: string; displayName: string; avatarUrl: string | null };
+
+/** Infos d'un de mes messages : qui l'a reçu et lu */
+export type MessageInfo = {
+  sentAt: string;
+  recipients: {
+    user: { id: string; displayName: string; avatarUrl: string | null };
+    deliveredAt: string | null;
+    readAt: string | null;
+  }[];
+};

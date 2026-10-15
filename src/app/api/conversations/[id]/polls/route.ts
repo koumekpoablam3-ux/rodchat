@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
     return NextResponse.json({ message }, { status: 201 });
   } catch (error) {
-    if (error instanceof BlockedError) return NextResponse.json({ error: blockedMessage(error.byMe) }, { status: 403 });
+    if (error instanceof BlockedError) return NextResponse.json({ error: error.userMessage }, { status: 403 });
     throw error;
   }
 }

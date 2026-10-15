@@ -15,6 +15,7 @@ import { getSessionUserId } from "@/lib/session";
 const schema = z.object({
   name: z.string().trim().min(1, "Donne un nom au groupe.").max(MAX_GROUP_NAME, "Le nom du groupe est trop long.").optional(),
   description: z.string().trim().max(MAX_GROUP_DESCRIPTION, "La description est trop longue.").nullable().optional(),
+  adminsOnly: z.boolean().optional(),
   disappearingSeconds: z
     .number()
     .nullable()
@@ -42,16 +43,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-  const { name, description, disappearingSeconds } = parsed.data;
+  const { name, description, disappearingSeconds, adminsOnly } = parsed.data;
 
   if ((name !== undefined || description !== undefined) && !isGroup) {
     return badRequest("Seuls les groupes ont un nom et une description.");
   }
+  if (adminsOnly !== undefined && !isGroup) return badRequest("Le mode annonce ne concerne que les groupes.");
   if (isGroup && !isAdmin) return forbidden();
 
   const actor = await displayNameOf(userId);
   const notes: string[] = [];
-  const data: { name?: string; description?: string | null; disappearingSeconds?: number | null } = {};
+  const data: { name?: string; description?: string | null; disappearingSeconds?: number | null; adminsOnly?: boolean } = {};
 
   if (name !== undefined && name !== member.conversation.name) {
     data.name = name;
@@ -72,6 +74,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         disappearingSeconds === null
           ? `${actor} a désactivé les messages éphémères`
           : `${actor} a activé les messages éphémères (${disappearingLabel(disappearingSeconds)})`,
+      );
+    }
+  }
+
+  if (adminsOnly !== undefined) {
+    const current = await prisma.conversation.findUnique({ where: { id: params.id }, select: { adminsOnly: true } });
+    if (current?.adminsOnly !== adminsOnly) {
+      data.adminsOnly = adminsOnly;
+      notes.push(
+        adminsOnly
+          ? `${actor} a limité l'envoi de messages aux admins`
+          : `${actor} a autorisé tous les membres à envoyer des messages`,
       );
     }
   }

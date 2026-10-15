@@ -6,6 +6,7 @@ import {
   Archive,
   ArchiveRestore,
   Ban,
+  Download,
   Flag,
   Bell,
   BellOff,
@@ -309,6 +310,19 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
             <button
               type="button"
               className={row}
+              onClick={() => {
+                // Le fuseau du navigateur : les heures du fichier sont celles que tu vois à l'écran
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                window.location.assign(`/api/conversations/${conversationId}/export?tz=${encodeURIComponent(tz)}`);
+              }}
+            >
+              <Download size={20} aria-hidden="true" />
+              Exporter la discussion
+            </button>
+
+            <button
+              type="button"
+              className={row}
               aria-expanded={disappearingOpen}
               onClick={() => setDisappearingOpen((value) => !value)}
             >
@@ -339,6 +353,28 @@ export default function ConversationInfo({ conversationId, onClose, onSearch, on
               </fieldset>
             ) : null}
           </div>
+
+          {isGroup ? (
+            <div className="border-t border-line pt-3">
+              <label className={`flex items-start gap-3 rounded-xl px-1 py-2 ${isAdmin ? "cursor-pointer hover:bg-bg" : "opacity-70"}`}>
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
+                  checked={conversation.adminsOnly}
+                  disabled={!isAdmin || busy}
+                  onChange={(event) => void run(() => updateGroup(conversationId, { adminsOnly: event.target.checked }))}
+                />
+                <span>
+                  <span className="block font-medium">Seuls les admins peuvent écrire</span>
+                  <span className="block text-sm text-muted">
+                    {isAdmin
+                      ? "Les autres membres lisent et réagissent, mais n'envoient pas de messages. Idéal pour les annonces."
+                      : "Seuls les administrateurs peuvent changer ce réglage."}
+                  </span>
+                </span>
+              </label>
+            </div>
+          ) : null}
 
           {/* Membres */}
           {isGroup ? (

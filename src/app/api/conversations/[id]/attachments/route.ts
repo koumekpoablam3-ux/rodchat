@@ -113,7 +113,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     background(maybeAutoCleanup().catch((error) => console.error("[storage]", error)));
     return NextResponse.json({ message }, { status: 201 });
   } catch (error) {
-    if (error instanceof BlockedError) return NextResponse.json({ error: blockedMessage(error.byMe) }, { status: 403 });
+    if (error instanceof BlockedError) return NextResponse.json({ error: error.userMessage }, { status: 403 });
     throw error;
   }
 }

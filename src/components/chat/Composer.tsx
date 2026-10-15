@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, CalendarClock, FileText, ImageIcon, Mic, Paperclip, Pencil, SendHorizontal, Trash2, Video, X } from "lucide-react";
+import { BarChart3, CalendarClock, FileText, MapPin, Smile, ImageIcon, Mic, Paperclip, Pencil, SendHorizontal, Trash2, Video, X } from "lucide-react";
 import { useVoiceRecorder, type VoiceRecording } from "@/hooks/useVoiceRecorder";
 import { formatDuration } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
@@ -9,6 +9,8 @@ import { MAX_MESSAGE_LENGTH } from "@/lib/limits";
 import { mentionAtCaret } from "@/lib/mentions";
 import type { ChatMessage } from "@/types/chat";
 import { useChat } from "./ChatProvider";
+import { getDraft, saveDraft } from "@/lib/drafts";
+import EmojiPicker from "./EmojiPicker";
 import PollDialog from "./PollDialog";
 import QuotedBlock from "./QuotedBlock";
 import ScheduleDialog from "./ScheduleDialog";
@@ -40,6 +42,7 @@ export default function Composer({
   const [text, setText] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   // « @ » en cours de frappe dans un groupe : suggestions de membres
@@ -57,6 +60,65 @@ export default function Composer({
       )
       .slice(0, 5);
   }, [mention, conversation, me.id]);
+
+  /** Envoie ma position sous forme de lien de carte (OpenStreetMap). Le navigateur demande l'autorisation. */
+  function shareLocation() {
+    setMenuOpen(false);
+    setError("");
+    if (!navigator.geolocation) return setError("Ton navigateur ne permet pas de partager ta position.");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude.toFixed(5);
+        const lon = position.coords.longitude.toFixed(5);
+        sendMessage(
+          conversationId,
+          `📍 Ma position\nhttps://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`,
+          null,
+        );
+        onSent();
+      },
+      (failure) =>
+        setError(
+          failure.code === failure.PERMISSION_DENIED
+            ? "Autorise l'accès à ta position dans ton navigateur pour la partager."
+            : "Impossible de récupérer ta position pour l'instant.",
+        ),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
+    );
+  }
+
+  /** Insère un emoji à la position du curseur */
+  function insertEmoji(emoji: string) {
+    const element = textareaRef.current;
+    const start = element?.selectionStart ?? text.length;
+    const end = element?.selectionEnd ?? start;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    if (next.length > MAX_MESSAGE_LENGTH) return;
+    setText(next);
+    const position = start + emoji.length;
+    requestAnimationFrame(() => {
+      element?.focus();
+      element?.setSelectionRange(position, position);
+    });
+  }
+
+  /** Vide la zone de saisie ET le brouillon (après un envoi, par exemple) */
+  function clearText() {
+    setText("");
+    saveDraft(conversationId, "");
+  }
+
+  // Brouillon : on retrouve le message commencé dans cette discussion, et on le garde à chaque frappe
+  useEffect(() => {
+    if (!editing) setText(getDraft(conversationId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (editing) return;
+    const timer = setTimeout(() => saveDraft(conversationId, text), 250);
+    return () => clearTimeout(timer);
+  }, [text, conversationId, editing]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -190,7 +252,7 @@ export default function Composer({
       stopTyping();
       if (value === editing.content) {
         onCancelEdit();
-        setText("");
+        clearText();
         return;
       }
       const problem = await editMessage(conversationId, editing.id, value);
@@ -199,21 +261,21 @@ export default function Composer({
         return;
       }
       onCancelEdit();
-      setText("");
+      clearText();
       return;
     }
 
     sendMessage(conversationId, value, replyTo);
     onSent();
     onCancelReply();
-    setText("");
+    clearText();
     stopTyping();
     textareaRef.current?.focus();
   }
 
   function cancelEdit() {
     onCancelEdit();
-    setText("");
+    clearText();
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -429,6 +491,10 @@ export default function Composer({
                   <BarChart3 size={18} aria-hidden="true" />
                   Sondage
                 </button>
+                <button type="button" role="menuitem" className={menuItem} onClick={shareLocation}>
+                  <MapPin size={18} aria-hidden="true" />
+                  Position
+                </button>
               </div>
             ) : null}
           </div>
@@ -436,7 +502,18 @@ export default function Composer({
           <label htmlFor="composer" className="sr-only">
             Écrire un message
           </label>
+          <button
+            type="button"
+            onClick={() => setEmojiOpen((open) => !open)}
+            aria-label="Emojis"
+            aria-expanded={emojiOpen}
+            title="Emojis"
+            className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-bg sm:inline-flex"
+          >
+            <Smile size={22} />
+          </button>
           <div className="relative min-w-0 flex-1">
+            {emojiOpen ? <EmojiPicker onPick={insertEmoji} onClose={() => setEmojiOpen(false)} /> : null}
             {suggestions.length > 0 ? (
               <ul
                 role="listbox"
@@ -513,7 +590,7 @@ export default function Composer({
           conversationId={conversationId}
           text={text.trim()}
           onScheduled={() => {
-            setText("");
+            clearText();
             onCancelReply();
           }}
           onClose={() => setScheduleOpen(false)}

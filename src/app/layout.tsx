@@ -4,7 +4,9 @@ import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/figtree";
 import "./globals.css";
 import RegisterServiceWorker from "@/components/RegisterServiceWorker";
+import AppLock from "@/components/AppLock";
 import SplashScreen from "@/components/SplashScreen";
+import { PALETTE_COOKIE, parsePalette } from "@/lib/palette";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -34,18 +36,26 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const theme = parseTheme(cookies().get(THEME_COOKIE)?.value);
+  const palette = parsePalette(cookies().get(PALETTE_COOKIE)?.value);
   return (
-    <html lang="fr" data-theme={theme === "auto" ? undefined : theme} suppressHydrationWarning>
+    <html
+      lang="fr"
+      data-theme={theme === "auto" ? undefined : theme}
+      data-palette={palette === "aubergine" ? undefined : palette}
+      suppressHydrationWarning
+    >
       <head>
         {/* Déjà vue dans cette session : l'écran de démarrage est masqué avant même le premier affichage (pas de clignotement) */}
         <script
           dangerouslySetInnerHTML={{
-            __html: 'try{if(sessionStorage.getItem("rodchat-splash"))document.documentElement.setAttribute("data-splash","off")}catch(e){}',
+            __html:
+              'try{var d=document.documentElement;if(sessionStorage.getItem("rodchat-splash"))d.setAttribute("data-splash","off");if(localStorage.getItem("rodchat-app-lock"))d.setAttribute("data-locked","1")}catch(e){}',
           }}
         />
       </head>
       <body className="font-sans">
         <SplashScreen />
+        <AppLock />
         {children}
         <RegisterServiceWorker />
       </body>

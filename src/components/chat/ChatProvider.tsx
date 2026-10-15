@@ -35,6 +35,8 @@ export type ConversationSettingsPatch = {
 };
 
 export type GroupPatch = {
+  /** Mode annonce : seuls les admins peuvent écrire */
+  adminsOnly?: boolean;
   name?: string;
   description?: string | null;
   disappearingSeconds?: number | null;

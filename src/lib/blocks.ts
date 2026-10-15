@@ -2,8 +2,21 @@ import { prisma } from "./prisma";
 
 /** Message refusé parce que l'un des deux a bloqué l'autre */
 export class BlockedError extends Error {
-  constructor(public readonly byMe: boolean) {
+  /** Phrase à montrer à la personne qui voulait écrire */
+  readonly userMessage: string;
+  constructor(
+    public readonly byMe: boolean,
+    userMessage?: string,
+  ) {
     super(byMe ? "blocked_by_me" : "blocked");
+    this.userMessage = userMessage ?? blockedMessage(byMe);
+  }
+}
+
+/** Groupe en mode annonce : seuls les admins peuvent écrire */
+export class AdminsOnlyError extends BlockedError {
+  constructor() {
+    super(false, "Seuls les admins peuvent envoyer des messages dans ce groupe.");
   }
 }
 
@@ -21,13 +34,21 @@ export async function blockState(me: string, other: string) {
   return { byMe: rows.some((r) => r.blockerId === me), byThem: rows.some((r) => r.blockerId === other) };
 }
 
-/** Dans une discussion à deux : lève BlockedError si l'un a bloqué l'autre. Sans effet dans un groupe. */
+/** Lève BlockedError si l'envoi est refusé : un blocage dans une discussion à deux, ou le mode annonce dans un groupe. */
 export async function assertCanMessage(senderId: string, conversationId: string) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    select: { isGroup: true, participants: { select: { userId: true } } },
+    select: { isGroup: true, adminsOnly: true, participants: { select: { userId: true, role: true } } },
   });
-  if (!conversation || conversation.isGroup) return;
+  if (!conversation) return;
+
+  if (conversation.isGroup) {
+    // Mode annonce : seuls les admins écrivent
+    const mine = conversation.participants.find((p) => p.userId === senderId);
+    if (conversation.adminsOnly && mine?.role !== "ADMIN") throw new AdminsOnlyError();
+    return;
+  }
+
   const otherId = conversation.participants.find((p) => p.userId !== senderId)?.userId;
   if (!otherId) return;
   const state = await blockState(senderId, otherId);

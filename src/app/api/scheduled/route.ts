@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     await assertCanMessage(userId, conversationId);
   } catch (error) {
     if (error instanceof BlockedError) {
-      return NextResponse.json({ error: blockedMessage(error.byMe) }, { status: 403 });
+      return NextResponse.json({ error: error.userMessage }, { status: 403 });
     }
     throw error;
   }
