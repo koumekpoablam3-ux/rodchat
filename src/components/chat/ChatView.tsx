@@ -507,7 +507,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink hover:bg-bg disabled:opacity-40 disabled:hover:bg-transparent";
   const callsDisabled = inCall || !connected || (conversation.isGroup && !!groupCall);
 
-  const myReactionOnMenu = menuMessage?.reactions?.find((r) => r.userId === me.id)?.emoji;
+  const myReactionOnMenu = menuMessage?.reactions?.find((r) => r.userId === me.id)?.emoji ?? null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
