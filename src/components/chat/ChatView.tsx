@@ -839,7 +839,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
             closeMenu();
             setForwardIds([menuMessage.id]);
           }}
-          onDeleteForMe={() => void remove(menuMessage, "me")}
           onDeleteForAll={() => void remove(menuMessage, "all")}
           onReport={() => {
             closeMenu();
