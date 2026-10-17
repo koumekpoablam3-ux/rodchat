@@ -2,7 +2,23 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowLeft, AtSign, Clock, Pin, LoaderCircle, Phone, Search, Video, WifiOff } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  AtSign,
+  Clock,
+  Copy,
+  Forward,
+  LoaderCircle,
+  Phone,
+  Pin,
+  Search,
+  Star,
+  Trash2,
+  Video,
+  WifiOff,
+  X,
+} from "lucide-react";
 import { useCall } from "@/components/call/CallProvider";
 import { formatDayLabel, formatLastSeen } from "@/lib/format";
 import { DELETE_FOR_ALL_WINDOW_MS, EDIT_WINDOW_MS, disappearingLabel } from "@/lib/limits";
@@ -18,6 +34,7 @@ import ForwardDialog from "./ForwardDialog";
 import MessageBubble from "./MessageBubble";
 import MessageMenu from "./MessageMenu";
 import MessageInfoDialog from "./MessageInfoDialog";
+import BulkDeleteDialog from "./BulkDeleteDialog";
 import ReportDialog from "./ReportDialog";
 import SystemRow from "./SystemRow";
 
@@ -80,6 +97,27 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     const timer = setTimeout(() => setOfflineLong(true), 3000);
     return () => clearTimeout(timer);
   }, [connected]);
+
+  // Plus rien de coché : on sort du mode sélection. Changer de discussion ou appuyer sur Échap aussi.
+  useEffect(() => {
+    if (selecting && selectedIds.size === 0) setSelecting(false);
+  }, [selecting, selectedIds]);
+  useEffect(() => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+  }, [conversationId]);
+  useEffect(() => {
+    if (!selecting) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !bulkDeleteOpen && !forwardIds) {
+        setSelecting(false);
+        setSelectedIds(new Set());
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selecting, bulkDeleteOpen, forwardIds]);
+
   const messages = messagesByConv[conversationId] ?? NO_MESSAGES;
   const loaded = loadedByConv[conversationId] === true;
   const hasMore = hasMoreByConv[conversationId] === true;
@@ -92,7 +130,12 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const [replyToId, setReplyToId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
-  const [forwardId, setForwardId] = useState<string | null>(null);
+  const [forwardIds, setForwardIds] = useState<string[] | null>(null);
+  // Sélection de plusieurs messages (copier, mettre en favori, transférer, supprimer)
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -374,6 +417,88 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     }
   }
 
+  // --- Sélection de plusieurs messages ---
+
+  function startSelecting(firstId: string) {
+    closeMenu();
+    setSelecting(true);
+    setSelectedIds(new Set([firstId]));
+  }
+
+  function stopSelecting() {
+    setSelecting(false);
+    setSelectedIds(new Set());
+    setBulkDeleteOpen(false);
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const selectedMessages = messages.filter((m) => selectedIds.has(m.id));
+  const FORWARDABLE = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE"];
+  const canDeleteSelectedForAll =
+    selectedMessages.length > 0 &&
+    selectedMessages.every(
+      (m) =>
+        m.senderId === me.id &&
+        m.deletedAt === null &&
+        !m.localStatus &&
+        DELETABLE_TYPES.includes(m.type) &&
+        Date.now() - new Date(m.createdAt).getTime() <= DELETE_FOR_ALL_WINDOW_MS,
+    );
+
+  async function copySelected() {
+    const lines = selectedMessages
+      .filter((m) => m.type === "TEXT" && m.content && m.deletedAt === null)
+      .map((m) => {
+        const time = new Date(m.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        return `[${time}] ${nameOf(m.senderId)} : ${m.content}`;
+      });
+    if (lines.length === 0) return setToast("Aucun texte à copier dans cette sélection.");
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setToast(lines.length > 1 ? `${lines.length} messages copiés` : "Message copié");
+    } catch {
+      setToast("Copie impossible sur cet appareil.");
+    }
+    stopSelecting();
+  }
+
+  async function starSelected() {
+    const everyStarred = selectedMessages.every((m) => starredIds.has(m.id));
+    for (const m of selectedMessages) {
+      if (everyStarred === starredIds.has(m.id)) await toggleStar(m.id);
+    }
+    setToast(everyStarred ? "Retirés des favoris" : "Ajoutés aux favoris");
+    stopSelecting();
+  }
+
+  function forwardSelected() {
+    const ids = selectedMessages
+      .filter((m) => FORWARDABLE.includes(m.type) && m.deletedAt === null && !m.localStatus && !m.attachment?.purgedAt)
+      .map((m) => m.id);
+    if (ids.length === 0) return setToast("Ces messages ne peuvent pas être transférés.");
+    setForwardIds(ids);
+  }
+
+  async function deleteSelected(scope: "me" | "all") {
+    setBulkBusy(true);
+    let problem: string | null = null;
+    for (const m of selectedMessages) {
+      if (m.deletedAt !== null || m.localStatus) continue;
+      problem = (await deleteMessage(conversationId, m.id, scope)) ?? problem;
+    }
+    setBulkBusy(false);
+    stopSelecting();
+    setToast(problem ?? (selectedMessages.length > 1 ? "Messages supprimés" : "Message supprimé"));
+  }
+
   async function star(message: ChatMessage) {
     closeMenu();
     const problem = await toggleStar(message.id);
@@ -408,7 +533,35 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-2 border-b border-line bg-panel px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:px-4">
+      {selecting ? (
+        <div className="flex items-center gap-1 border-b border-line bg-panel px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:px-4">
+          <button
+            type="button"
+            aria-label="Annuler la sélection"
+            onClick={stopSelecting}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full hover:bg-bg"
+          >
+            <X size={22} />
+          </button>
+          <p className="min-w-0 flex-1 truncate font-display text-lg font-semibold" aria-live="polite">
+            {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
+          </p>
+          <button type="button" aria-label="Copier" title="Copier" onClick={() => void copySelected()} className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg">
+            <Copy size={20} />
+          </button>
+          <button type="button" aria-label="Favori" title="Favori" onClick={() => void starSelected()} className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg">
+            <Star size={20} />
+          </button>
+          <button type="button" aria-label="Transférer" title="Transférer" onClick={forwardSelected} className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg">
+            <Forward size={20} />
+          </button>
+          <button type="button" aria-label="Supprimer" title="Supprimer" onClick={() => setBulkDeleteOpen(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-full text-danger hover:bg-bg">
+            <Trash2 size={20} />
+          </button>
+        </div>
+      ) : null}
+
+      <header className={`${selecting ? "hidden" : "flex"} items-center gap-2 border-b border-line bg-panel px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:px-4`}>
         <Link
           href="/chat"
           aria-label="Retour aux discussions"
@@ -609,11 +762,14 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
                 highlighted={highlightId === message.id}
                 onRetry={clientId ? () => retryMessage(conversationId, clientId) : undefined}
                 onDiscard={clientId ? () => discardMessage(conversationId, clientId) : undefined}
-                onOpenMenu={() => setMenuId(message.id)}
+                onOpenMenu={selecting ? undefined : () => setMenuId(message.id)}
+                selectionMode={selecting}
+                selected={selectedIds.has(message.id)}
+                onToggleSelect={() => toggleSelected(message.id)}
                 onReplyClick={(id) => void goToMessage(id)}
                 onVote={(optionIds) => votePoll(message.id, optionIds)}
                 onSwipeReply={
-                  conversation.blockedByMe
+                  selecting || conversation.blockedByMe
                     ? undefined
                     : () => {
                         setEditingId(null);
@@ -746,9 +902,10 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
             closeMenu();
             setInfoMessageId(menuMessage.id);
           }}
+          onSelect={() => startSelecting(menuMessage.id)}
           onForward={() => {
             closeMenu();
-            setForwardId(menuMessage.id);
+            setForwardIds([menuMessage.id]);
           }}
           onEdit={() => {
             closeMenu();
@@ -759,14 +916,33 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         />
       ) : null}
 
-      {forwardId ? (
+      {forwardIds ? (
         <ForwardDialog
-          messageId={forwardId}
-          onClose={() => setForwardId(null)}
+          messageIds={forwardIds}
+          onClose={() => setForwardIds(null)}
           onDone={(count) => {
-            setForwardId(null);
-            setToast(count > 1 ? `Message transféré à ${count} discussions` : "Message transféré");
+            const many = forwardIds.length > 1;
+            setForwardIds(null);
+            stopSelecting();
+            setToast(
+              many
+                ? `${forwardIds.length} messages transférés`
+                : count > 1
+                  ? `Message transféré à ${count} discussions`
+                  : "Message transféré",
+            );
           }}
+        />
+      ) : null}
+
+      {bulkDeleteOpen ? (
+        <BulkDeleteDialog
+          count={selectedIds.size}
+          canDeleteForAll={canDeleteSelectedForAll}
+          busy={bulkBusy}
+          onForMe={() => void deleteSelected("me")}
+          onForAll={() => void deleteSelected("all")}
+          onClose={() => setBulkDeleteOpen(false)}
         />
       ) : null}
 

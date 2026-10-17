@@ -25,12 +25,16 @@ export default function AppMenu() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [starredOpen, setStarredOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminPending, setAdminPending] = useState(0);
 
   // Le lien « Espace admin » n'apparaît que pour les administrateurs
   useEffect(() => {
     fetch("/api/admin/me", { cache: "no-store" })
-      .then((response) => response.json() as Promise<{ admin?: boolean }>)
-      .then((data) => setIsAdmin(data.admin === true))
+      .then((response) => response.json() as Promise<{ admin?: boolean; pending?: number }>)
+      .then((data) => {
+        setIsAdmin(data.admin === true);
+        setAdminPending(data.pending ?? 0);
+      })
       .catch(() => {});
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -127,6 +131,11 @@ export default function AppMenu() {
             >
               <ShieldCheck size={18} aria-hidden="true" />
               Espace admin
+              {adminPending > 0 ? (
+                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold leading-5 text-accent-ink">
+                  {adminPending}
+                </span>
+              ) : null}
             </button>
           ) : null}
           <button

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, MonitorOff, MonitorUp, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
 import Avatar from "@/components/chat/Avatar";
 import { formatDuration } from "@/lib/format";
 import type { ActiveCall } from "./CallProvider";
@@ -15,6 +15,9 @@ type CallScreenProps = {
   onHangUp: () => void;
   onToggleMic: () => void;
   onToggleCam: () => void;
+  /** Le navigateur sait partager l'écran (ordinateur, appel vidéo) */
+  canShare?: boolean;
+  onToggleShare?: () => void;
 };
 
 function statusText(call: ActiveCall, elapsedMs: number, connected: boolean) {
@@ -38,6 +41,8 @@ export default function CallScreen({
   onHangUp,
   onToggleMic,
   onToggleCam,
+  canShare = false,
+  onToggleShare,
 }: CallScreenProps) {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -85,8 +90,13 @@ export default function CallScreen({
           autoPlay
           playsInline
           muted
-          className="absolute inset-0 h-full w-full bg-black object-cover"
+          className={`absolute inset-0 h-full w-full bg-black ${call.remoteSharing ? "object-contain" : "object-cover"}`}
         />
+      ) : null}
+      {call.sharing ? (
+        <p role="status" className="absolute left-1/2 top-[calc(env(safe-area-inset-top)+0.75rem)] z-20 -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-semibold shadow-lg">
+          Tu partages ton écran
+        </p>
       ) : null}
       {/* Le son de l'autre personne passe toujours par cet élément, même si sa caméra est coupée */}
       {!ringing ? <audio ref={remoteAudioRef} autoPlay /> : null}
@@ -187,6 +197,18 @@ export default function CallScreen({
                 className={`${roundButton} ${call.camOn ? "bg-white/15 hover:bg-white/25" : "bg-white text-[#100D18] hover:bg-white/90"}`}
               >
                 {call.camOn ? <Video size={24} /> : <VideoOff size={24} />}
+              </button>
+            ) : null}
+            {canShare && onToggleShare && call.phase !== "calling" ? (
+              <button
+                type="button"
+                onClick={onToggleShare}
+                aria-pressed={Boolean(call.sharing)}
+                aria-label={call.sharing ? "Arrêter le partage d'écran" : "Partager mon écran"}
+                title={call.sharing ? "Arrêter le partage d'écran" : "Partager mon écran"}
+                className={`${roundButton} ${call.sharing ? "bg-white text-[#100D18] hover:bg-white/90" : "bg-white/15 hover:bg-white/25"}`}
+              >
+                {call.sharing ? <MonitorOff size={24} /> : <MonitorUp size={24} />}
               </button>
             ) : null}
             <button

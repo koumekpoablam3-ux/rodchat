@@ -35,6 +35,10 @@ export type ActiveCall = {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   unstable: boolean;
+  /** Je partage mon écran */
+  sharing?: boolean;
+  /** L'autre personne partage son écran (l'image s'affiche en entier, sans être recadrée) */
+  remoteSharing?: boolean;
 };
 
 type CallContextValue = {
@@ -66,7 +70,7 @@ type IncomingPayload = {
 
 type SignalPayload = {
   callId: string;
-  data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+  data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; screen?: boolean };
 };
 
 /** Notification système quand un appel arrive alors que l'onglet est en arrière-plan */
@@ -121,6 +125,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
   const callRef = useRef<ActiveCall | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationsRef = useRef(conversations);
@@ -165,6 +170,8 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+    screenStreamRef.current = null;
     pendingCandidates.current = [];
     setCall(null);
   }, [setCall]);
@@ -351,6 +358,42 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     setCall((prev) => (prev ? { ...prev, camOn: !prev.camOn } : prev));
   }, [setCall]);
 
+  // Partage d'écran : l'image de l'écran remplace celle de la caméra sur le même flux vidéo (aucune renégociation).
+  // Seulement en appel vidéo à deux, sur ordinateur (les téléphones ne savent pas partager leur écran).
+  const stopShare = useCallback(async () => {
+    const screen = screenStreamRef.current;
+    if (!screen) return;
+    screenStreamRef.current = null;
+    screen.getTracks().forEach((track) => track.stop());
+    const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
+    const camera = localStreamRef.current?.getVideoTracks()[0] ?? null;
+    await sender?.replaceTrack(camera).catch(() => {});
+    const callId = callRef.current?.callId;
+    if (callId) getSocket().emit("call:signal", { callId, data: { screen: false } });
+    setCall((prev) => (prev ? { ...prev, sharing: false } : prev));
+  }, [setCall]);
+
+  const toggleShare = useCallback(async () => {
+    if (screenStreamRef.current) return stopShare();
+    const pc = pcRef.current;
+    const sender = pc?.getSenders().find((s) => s.track?.kind === "video");
+    if (!pc || !sender || !navigator.mediaDevices?.getDisplayMedia) return;
+    try {
+      const screen = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const track = screen.getVideoTracks()[0];
+      if (!track) return screen.getTracks().forEach((t) => t.stop());
+      await sender.replaceTrack(track);
+      screenStreamRef.current = screen;
+      // La personne arrête le partage avec le bouton du navigateur
+      track.addEventListener("ended", () => void stopShare());
+      const callId = callRef.current?.callId;
+      if (callId) getSocket().emit("call:signal", { callId, data: { screen: true } });
+      setCall((prev) => (prev ? { ...prev, sharing: true } : prev));
+    } catch {
+      /* partage refusé ou annulé : rien ne change */
+    }
+  }, [setCall, stopShare]);
+
   // --- Événements de signalisation ---
   useEffect(() => {
     const socket = getSocket();
@@ -416,6 +459,9 @@ export default function CallProvider({ children }: { children: React.ReactNode }
         } else if (data.candidate) {
           if (pc.remoteDescription) await pc.addIceCandidate(data.candidate).catch(() => {});
           else pendingCandidates.current.push(data.candidate);
+        } else if (typeof data.screen === "boolean") {
+          const sharing = data.screen;
+          setCall((prev) => (prev ? { ...prev, remoteSharing: sharing } : prev));
         }
       } catch {
         hangUp("La connexion a échoué. Réessaie.");
@@ -489,6 +535,10 @@ export default function CallProvider({ children }: { children: React.ReactNode }
           onHangUp={() => hangUp()}
           onToggleMic={toggleMic}
           onToggleCam={toggleCam}
+          canShare={
+            call.kind === "VIDEO" && typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getDisplayMedia)
+          }
+          onToggleShare={() => void toggleShare()}
         />
       ) : null}
       {group ? (

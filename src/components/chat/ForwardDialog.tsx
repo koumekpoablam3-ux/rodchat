@@ -7,14 +7,15 @@ import Avatar from "./Avatar";
 import { useChat } from "./ChatProvider";
 
 type ForwardDialogProps = {
-  messageId: string;
+  /** Un ou plusieurs messages, transférés dans l'ordre */
+  messageIds: string[];
   onClose: () => void;
   /** Appelé après un transfert réussi */
   onDone: (count: number) => void;
 };
 
 /** Choix des discussions où transférer un message */
-export default function ForwardDialog({ messageId, onClose, onDone }: ForwardDialogProps) {
+export default function ForwardDialog({ messageIds, onClose, onDone }: ForwardDialogProps) {
   const { conversations, forwardMessage } = useChat();
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -49,11 +50,13 @@ export default function ForwardDialog({ messageId, onClose, onDone }: ForwardDia
   async function send() {
     if (selected.length === 0 || busy) return;
     setBusy(true);
-    const problem = await forwardMessage(messageId, selected);
-    if (problem) {
-      setError(problem);
-      setBusy(false);
-      return;
+    for (const messageId of messageIds) {
+      const problem = await forwardMessage(messageId, selected);
+      if (problem) {
+        setError(problem);
+        setBusy(false);
+        return;
+      }
     }
     onDone(selected.length);
   }
@@ -73,7 +76,7 @@ export default function ForwardDialog({ messageId, onClose, onDone }: ForwardDia
       >
         <div className="flex items-center justify-between px-5 pb-2 pt-5">
           <h2 id="forward-title" className="font-display text-xl font-bold">
-            Transférer à…
+            {messageIds.length > 1 ? `Transférer ${messageIds.length} messages à…` : "Transférer à…"}
           </h2>
           <button
             type="button"

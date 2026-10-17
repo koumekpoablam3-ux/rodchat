@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/metrics", label: "Indicateurs" },
+  { href: "/admin/passwords", label: "Mots de passe" },
   { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/groups", label: "Groupes" },
   { href: "/admin/storage", label: "Stockage" },
@@ -14,7 +15,8 @@ const LINKS = [
   { href: "/admin/logs", label: "Journal" },
 ];
 
-export default function AdminNav() {
+/** `badges` : nombre de choses à traiter, par adresse (ex. signalements en attente) */
+export default function AdminNav({ badges = {} }: { badges?: Record<string, number> }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Administration" className="scroll-thin flex gap-1 overflow-x-auto">
@@ -30,6 +32,11 @@ export default function AdminNav() {
             }`}
           >
             {link.label}
+            {badges[link.href] ? (
+              <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold leading-5 text-accent-ink">
+                {badges[link.href]}
+              </span>
+            ) : null}
           </Link>
         );
       })}

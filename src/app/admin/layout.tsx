@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import AdminNav from "@/components/admin/AdminNav";
 import { isAdminUsername } from "@/lib/admin";
+import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Administration", robots: { index: false, follow: false } };
@@ -15,6 +16,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!user) redirect("/login?next=/admin");
   if (!isAdminUsername(user.username)) notFound();
 
+  // Ce qui attend l'administrateur : pastilles sur les onglets
+  const [reports, passwords] = await Promise.all([
+    prisma.report.count({ where: { status: "OPEN" } }),
+    prisma.passwordResetRequest.count({ where: { status: "PENDING" } }),
+  ]);
+
   return (
     <div className="min-h-dvh bg-bg">
       <header className="border-b border-line bg-panel">
@@ -25,7 +32,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </Link>
         </div>
         <div className="mx-auto max-w-5xl px-4 pb-3">
-          <AdminNav />
+          <AdminNav badges={{ "/admin/reports": reports, "/admin/passwords": passwords }} />
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>

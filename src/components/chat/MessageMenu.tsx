@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Flag, Forward, Info, Pencil, Pin, PinOff, Reply, Share2, Star, Trash2 } from "lucide-react";
+import { CheckSquare, Copy, Flag, Forward, Info, Pencil, Pin, PinOff, Reply, Share2, Star, Trash2 } from "lucide-react";
 import { REACTION_EMOJIS } from "@/lib/limits";
 import type { ChatMessage } from "@/types/chat";
 
@@ -25,6 +25,8 @@ type MessageMenuProps = {
   onTogglePin: () => void;
   onReport: () => void;
   onInfo: () => void;
+  /** Passe en mode sélection avec ce message coché */
+  onSelect: () => void;
   onForward: () => void;
   onEdit: () => void;
   onDelete: (scope: "me" | "all") => void;
@@ -124,6 +126,12 @@ export default function MessageMenu(props: MessageMenuProps) {
                 <button type="button" className={item} onClick={props.onEdit}>
                   <Pencil size={19} aria-hidden="true" />
                   Modifier
+                </button>
+              ) : null}
+              {!deleted && !["CALL", "SYSTEM"].includes(message.type) ? (
+                <button type="button" className={item} onClick={props.onSelect}>
+                  <CheckSquare size={19} aria-hidden="true" />
+                  Sélectionner
                 </button>
               ) : null}
               {!deleted && props.mine && !["CALL", "SYSTEM"].includes(message.type) ? (

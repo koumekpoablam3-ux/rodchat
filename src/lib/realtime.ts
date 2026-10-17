@@ -84,6 +84,17 @@ export function getRealtime(): Realtime {
 export async function purgeOldEvents() {
   await prisma.realtimeEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 10 * 60_000) } } });
   await prisma.realtimeConnection.deleteMany({ where: { beatAt: { lt: new Date(Date.now() - 60 * 60_000) } } });
+  // Demandes de mot de passe : sans réponse après 7 jours, ou traitées depuis plus de 30 jours
+  await prisma.passwordResetRequest.deleteMany({
+    where: {
+      OR: [
+        { status: "PENDING", createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60_000) } },
+        { status: { not: "PENDING" }, resolvedAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60_000) } },
+      ],
+    },
+  });
+  // Sessions : connexions inactives depuis 60 jours (le jeton expire de toute façon au bout de 30 jours)
+  await prisma.session.deleteMany({ where: { lastSeenAt: { lt: new Date(Date.now() - 60 * 24 * 60 * 60_000) } } });
   await prisma.status.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await prisma.rateLimit.deleteMany({ where: { resetAt: { lt: new Date(Date.now() - 60 * 60_000) } } });
 }

@@ -8,6 +8,7 @@ import type { Theme } from "@/lib/theme";
 import AccountSecuritySection from "./AccountSecuritySection";
 import AppLockSection from "./AppLockSection";
 import DataSaverSection from "./DataSaverSection";
+import DevicesSection from "./DevicesSection";
 import PaletteSection from "./PaletteSection";
 
 type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean };
@@ -197,6 +198,8 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
               <PaletteSection />
 
               <DataSaverSection />
+
+              <DevicesSection />
 
               <AppLockSection />
 

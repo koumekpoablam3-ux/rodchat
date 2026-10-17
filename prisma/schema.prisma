@@ -75,6 +75,8 @@ model User {
   suspendedAt       DateTime?
   suspendedReason   String?
   scheduledMessages ScheduledMessage[]
+  passwordRequests  PasswordResetRequest[]
+  sessions          Session[]
 }
 
 model Conversation {
@@ -489,4 +491,38 @@ model PollVote {
 
   @@id([optionId, userId])
   @@index([userId])
+}
+
+// --- Mot de passe oublié : la personne choisit un nouveau mot de passe, l'administrateur valide ---
+// Le nouveau mot de passe n'est jamais gardé en clair : seule son empreinte est enregistrée, et ne sert qu'après approbation.
+model PasswordResetRequest {
+  id              String    @id @default(cuid())
+  userId          String
+  newPasswordHash String
+  // « Comment t'identifier ? » : ce que la personne écrit pour que l'administrateur vérifie que c'est bien elle
+  proof           String
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+// --- Appareils connectés : une ligne par connexion (un appareil = une session), révocable une par une ---
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  // Version de session du compte au moment de la connexion : après un « déconnecter partout », elle ne vaut plus
+  version    Int
+  label      String
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, version])
+  @@index([lastSeenAt])
 }

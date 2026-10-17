@@ -54,6 +54,10 @@ type BubbleProps = {
   onReact?: (emoji: string) => void;
   /** Glisser le message vers la droite pour y répondre (absent : le geste est désactivé) */
   onSwipeReply?: () => void;
+  /** Mode sélection : une case à cocher, et un toucher sur la ligne coche ou décoche le message */
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   /** Sondage : envoyer mes choix */
   onVote?: (optionIds: string[]) => Promise<string | null>;
 };
@@ -133,6 +137,9 @@ export default function MessageBubble({
   onReact,
   onSwipeReply,
   onVote,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
 }: BubbleProps) {
   const [viewing, setViewing] = useState(false);
   const isDeleted = message.deletedAt !== null;
@@ -184,10 +191,37 @@ export default function MessageBubble({
       id={`msg-${message.id}`}
       {...swipe.handlers}
       style={swipe.style}
+      {...(selectionMode
+        ? {
+            role: "checkbox",
+            "aria-checked": selected,
+            "aria-label": "Sélectionner ce message",
+            tabIndex: 0,
+            onClick: onToggleSelect,
+            onKeyDown: (event: React.KeyboardEvent) => {
+              if (event.key === " " || event.key === "Enter") {
+                event.preventDefault();
+                onToggleSelect?.();
+              }
+            },
+          }
+        : {})}
       className={`group relative flex flex-col ${mine ? "items-end" : "items-start"} ${tail ? "mb-2" : "mb-0.5"} ${
         highlighted ? "rounded-2xl bg-accent/25 transition-colors" : ""
+      } ${selectionMode ? "cursor-pointer pl-8 [&>*]:pointer-events-none" : ""} ${
+        selected ? "rounded-xl bg-brand/10" : ""
       }`}
     >
+      {selectionMode ? (
+        <span
+          aria-hidden="true"
+          className={`absolute left-0.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border-2 ${
+            selected ? "border-brand bg-brand text-brand-ink" : "border-muted/60 bg-panel"
+          }`}
+        >
+          {selected ? <Check size={14} strokeWidth={3} /> : null}
+        </span>
+      ) : null}
       {swipe.progress > 0 ? (
         <span
           aria-hidden="true"

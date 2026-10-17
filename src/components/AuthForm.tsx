@@ -156,13 +156,11 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
             8 caractères minimum.
           </span>
         ) : (
-          <details className="mt-2 text-sm">
-            <summary className="w-fit cursor-pointer font-semibold text-brand underline">Mot de passe oublié ?</summary>
-            <p className="mt-1 rounded-xl bg-panel px-3 py-2 text-muted">
-              Il n&apos;y a pas d&apos;envoi d&apos;e-mail : demande à l&apos;administrateur de Rodchat de réinitialiser ton
-              mot de passe. Il te donnera un mot de passe temporaire que tu pourras changer ensuite dans les paramètres.
-            </p>
-          </details>
+          <p className="mt-2 text-sm">
+            <Link href="/forgot-password" className="font-semibold text-brand underline">
+              Mot de passe oublié ?
+            </Link>
+          </p>
         )}
       </div>
 
