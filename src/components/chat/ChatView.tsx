@@ -804,7 +804,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       ) : null}
 
-      {/* Composant Composer avec la prop obligatoire onSent */}
       <Composer
         conversationId={conversationId}
         replyTo={replyTo}
@@ -817,7 +816,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
       {menuMessage ? (
         <MessageMenu
           message={menuMessage}
-          isMine={menuIsMine}
+          mine={menuIsMine}
           starred={starredIds.has(menuMessage.id)}
           pinned={pinnedMessages.some((p) => p.id === menuMessage.id)}
           canEdit={menuIsMine && menuAge <= EDIT_WINDOW_MS && menuMessage.deletedAt === null && !menuMessage.localStatus}
