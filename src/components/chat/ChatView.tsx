@@ -507,6 +507,8 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink hover:bg-bg disabled:opacity-40 disabled:hover:bg-transparent";
   const callsDisabled = inCall || !connected || (conversation.isGroup && !!groupCall);
 
+  const myReactionOnMenu = menuMessage?.reactions?.find((r) => r.userId === me.id)?.emoji;
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {selecting ? (
@@ -643,7 +645,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         <div className="flex items-center gap-3 border-b border-line bg-panel px-4 py-2">
           {groupCall.kind === "VIDEO" ? <Video size={18} aria-hidden="true" className="text-brand" /> : <Phone size={18} aria-hidden="true" className="text-brand" />}
           <p className="min-w-0 flex-1 truncate text-sm">
-            <span className="semibold">Appel {groupCall.kind === "VIDEO" ? "vidéo" : "audio"} de groupe en cours</span>
+            <span className="font-semibold">Appel {groupCall.kind === "VIDEO" ? "vidéo" : "audio"} de groupe en cours</span>
             <span className="text-muted">
               {" "}
               · {groupCall.participantIds.length} participant{groupCall.participantIds.length > 1 ? "s" : ""}
@@ -810,6 +812,8 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           pinned={pinnedMessages.some((p) => p.id === menuMessage.id)}
           canEdit={menuIsMine && menuAge <= EDIT_WINDOW_MS && menuMessage.deletedAt === null && !menuMessage.localStatus}
           canDeleteForAll={menuIsMine && menuAge <= DELETE_FOR_ALL_WINDOW_MS && menuMessage.deletedAt === null && !menuMessage.localStatus}
+          canShare={!!menuMessage.content}
+          myReaction={myReactionOnMenu}
           onClose={closeMenu}
           onReply={() => {
             closeMenu();
@@ -827,6 +831,16 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           onForward={() => {
             closeMenu();
             setForwardIds([menuMessage.id]);
+          }}
+          onToggleStar={() => {
+            closeMenu();
+            void toggleStar(menuMessage.id);
+          }}
+          onTogglePin={() => void togglePin(menuMessage)}
+          onDelete={(scope) => void remove(menuMessage, scope)}
+          onReact={(emoji) => {
+            closeMenu();
+            void react(menuMessage.id, emoji);
           }}
           onReport={() => {
             closeMenu();
