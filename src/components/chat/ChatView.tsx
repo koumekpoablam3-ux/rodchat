@@ -834,7 +834,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           }}
           onCopy={() => void copyText(menuMessage)}
           onShare={() => void shareText(menuMessage)}
-          onStar={() => void star(menuMessage)}
           onPin={() => void togglePin(menuMessage)}
           onSelect={() => startSelecting(menuMessage.id)}
           onForward={() => {
