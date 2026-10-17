@@ -856,7 +856,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
       {forwardIds ? (
         <ForwardDialog
           messageIds={forwardIds}
-          currentConversationId={conversationId}
           onClose={() => {
             setForwardIds(null);
             if (selecting) stopSelecting();
