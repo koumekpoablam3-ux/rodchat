@@ -46,12 +46,10 @@ type Item =
 const NO_MESSAGES: ChatMessage[] = [];
 const DELETABLE_TYPES = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "POLL"];
 
-/** Appels et messages système : lignes d'information, pas des bulles */
 const isInfoRow = (message: ChatMessage) => message.type === "CALL" || message.type === "SYSTEM";
 
 type ChatViewProps = {
   conversationId: string;
-  /** Message à afficher en premier (arrivée depuis une recherche) */
   focusMessageId?: string;
 };
 
@@ -86,7 +84,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
 
   const conversation = conversations.find((c) => c.id === conversationId);
 
-  // --- DÉCLARATION DE TOUS LES ÉTATS (useState) EN PREMIER ---
   const [offlineLong, setOfflineLong] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -106,7 +103,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const [reportMessageId, setReportMessageId] = useState<string | null>(null);
   const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
 
-  // Bandeau « Reconnexion »
   useEffect(() => {
     if (connected) {
       setOfflineLong(false);
@@ -116,7 +112,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     return () => clearTimeout(timer);
   }, [connected]);
 
-  // Mode sélection
   useEffect(() => {
     if (selecting && selectedIds.size === 0) setSelecting(false);
   }, [selecting, selectedIds]);
@@ -486,12 +481,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     setToast(problem ?? (selectedMessages.length > 1 ? "Messages supprimés" : "Message supprimé"));
   }
 
-  async function star(message: ChatMessage) {
-    closeMenu();
-    const problem = await toggleStar(message.id);
-    if (problem) setToast(problem);
-  }
-
   async function togglePin(message: ChatMessage) {
     closeMenu();
     const pinned = pinnedMessages.some((p) => p.id === message.id);
@@ -587,4 +576,331 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           </span>
         </button>
 
+        <div className="flex items-center">
+          <button type="button" className={headerButton} aria-label="Rechercher dans la discussion" onClick={() => setSearchOpen(true)}>
+            <Search size={20} />
+          </button>
+          <button
+            type="button"
+            className={headerButton}
+            disabled={callsDisabled}
+            aria-label={conversation.isGroup ? `Appel audio de groupe dans ${conversation.name}` : `Appel audio avec ${conversation.name}`}
+            onClick={() =>
+              void (conversation.isGroup ? startGroupCall(conversationId, "AUDIO") : startCall(conversationId, "AUDIO"))
+            }
+          >
+            <Phone size={20} />
+          </button>
+          <button
+            type="button"
+            className={headerButton}
+            disabled={callsDisabled}
+            aria-label={conversation.isGroup ? `Appel vidéo de groupe dans ${conversation.name}` : `Appel vidéo avec ${conversation.name}`}
+            onClick={() =>
+              void (conversation.isGroup ? startGroupCall(conversationId, "VIDEO") : startCall(conversationId, "VIDEO"))
+            }
+          >
+            <Video size={21} />
+          </button>
+        </div>
+      </header>
+
+      {pinnedMessages.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => {
+            const target = pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)];
+            setPinIndex((pinIndex + 1) % pinnedMessages.length);
+            void goToMessage(target.id);
+          }}
+          aria-label={`Message épinglé : ${pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)].preview}. Aller au message.`}
+          className="flex w-full items-center gap-3 border-b border-line bg-panel px-4 py-2 text-left hover:bg-bg"
+        >
+          <Pin size={16} aria-hidden="true" className="shrink-0 text-brand" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold text-brand">
+              Message épinglé{pinnedMessages.length > 1 ? ` · ${Math.min(pinIndex, pinnedMessages.length - 1) + 1}/${pinnedMessages.length}` : ""}
+            </span>
+            <span className="block truncate text-sm">
+              <span className="font-medium">{pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)].senderName.split(" ")[0]} : </span>
+              {pinnedMessages[Math.min(pinIndex, pinnedMessages.length - 1)].preview}
+            </span>
+          </span>
+        </button>
+      ) : null}
+
+      {offlineLong ? (
         <div
+          role="status"
+          className="flex items-center gap-2 bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
+        >
+          <WifiOff size={16} aria-hidden="true" />
+          Reconnexion en cours. Tes messages partiront dès que la connexion revient.
+        </div>
+      ) : null}
+
+      {conversation.isGroup && groupCall && activeGroupConversationId !== conversationId ? (
+        <div className="flex items-center gap-3 border-b border-line bg-panel px-4 py-2">
+          {groupCall.kind === "VIDEO" ? <Video size={18} aria-hidden="true" className="text-brand" /> : <Phone size={18} aria-hidden="true" className="text-brand" />}
+          <p className="min-w-0 flex-1 truncate text-sm">
+            <span className="semibold">Appel {groupCall.kind === "VIDEO" ? "vidéo" : "audio"} de groupe en cours</span>
+            <span className="text-muted">
+              {" "}
+              · {groupCall.participantIds.length} participant{groupCall.participantIds.length > 1 ? "s" : ""}
+            </span>
+          </p>
+          <button
+            type="button"
+            disabled={inCall || !connected}
+            onClick={() => void joinGroupCall(conversationId)}
+            className="h-9 shrink-0 rounded-full bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Rejoindre
+          </button>
+        </div>
+      ) : null}
+
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="wallpaper scroll-thin flex-1 overflow-y-auto px-3 py-3 md:px-6"
+      >
+        <div className="mx-auto flex max-w-3xl flex-col">
+          {hasMore ? (
+            <div className="mb-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void showOlder()}
+                disabled={loadingOlder}
+                className="rounded-full bg-panel px-4 py-2 text-sm font-medium text-ink shadow-sm disabled:opacity-60"
+              >
+                {loadingOlder ? "Chargement…" : "Voir les messages précédents"}
+              </button>
+            </div>
+          ) : null}
+
+          {!loaded && messages.length === 0 ? (
+            <div className="flex justify-center py-10 text-muted" role="status">
+              <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-label="Chargement des messages" />
+            </div>
+          ) : null}
+
+          {loaded && messages.length === 0 ? (
+            <p className="mx-auto my-10 max-w-xs rounded-2xl bg-panel/90 px-5 py-4 text-center text-sm text-muted shadow-sm">
+              Aucun message pour l&apos;instant. Écris le premier ci-dessous.
+            </p>
+          ) : null}
+
+          {items.map((item) => {
+            if (item.kind === "day") {
+              return (
+                <div key={item.key} className="my-3 flex justify-center">
+                  <span
+                    className="rounded-full bg-panel/95 px-3 py-1 text-xs font-medium text-muted shadow-sm"
+                    suppressHydrationWarning
+                  >
+                    {item.label}
+                  </span>
+                </div>
+              );
+            }
+            if (item.kind === "unread") {
+              return (
+                <div key={item.key} role="separator" className="my-3 flex justify-center">
+                  <span className="rounded-full bg-panel px-4 py-1 text-xs font-semibold text-brand shadow-sm">
+                    {item.count} message{item.count > 1 ? "s" : ""} non lu{item.count > 1 ? "s" : ""}
+                  </span>
+                </div>
+              );
+            }
+            if (item.message.type === "CALL") {
+              return <CallLogRow key={item.key} message={item.message} meId={me.id} />;
+            }
+            if (item.message.type === "SYSTEM") {
+              return <SystemRow key={item.key} message={item.message} />;
+            }
+            const { message } = item;
+            const clientId = message.clientId;
+            return (
+              <MessageBubble
+                key={item.key}
+                message={message}
+                meId={me.id}
+                mentionable={mentionable}
+                meUsername={me.username.toLowerCase()}
+                mine={message.senderId === me.id}
+                showSender={conversation.isGroup && message.senderId !== me.id && item.showSender}
+                senderName={message.sender?.displayName ?? nameOf(message.senderId)}
+                tail={item.tail}
+                status={messageStatus(message)}
+                starred={starredIds.has(message.id)}
+                highlighted={highlightId === message.id}
+                onRetry={clientId ? () => retryMessage(conversationId, clientId) : undefined}
+                onDiscard={clientId ? () => discardMessage(conversationId, clientId) : undefined}
+                onOpenMenu={selecting ? undefined : () => setMenuId(message.id)}
+                selectionMode={selecting}
+                selected={selectedIds.has(message.id)}
+                onToggleSelect={() => toggleSelected(message.id)}
+                onReplyClick={(id) => void goToMessage(id)}
+                onVote={(optionIds) => votePoll(message.id, optionIds)}
+                onSwipeReply={
+                  selecting || conversation.blockedByMe
+                    ? undefined
+                    : () => {
+                        setEditingId(null);
+                        setReplyToId(message.id);
+                      }
+                }
+                onReact={(emoji) => void react(message.id, emoji)}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {hasNewer ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void backToLatest()}
+            className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-brand-ink shadow-lg"
+          >
+            <ArrowDown size={16} aria-hidden="true" />
+            Derniers messages
+          </button>
+        </div>
+      ) : null}
+
+      {mentionTargets.length > 0 ? (
+        <div className="pointer-events-none absolute bottom-24 right-4 z-20">
+          <button
+            type="button"
+            aria-label={`Aller à la prochaine mention (@${mentionTargets.length})`}
+            onClick={() => {
+              const target = mentionTargets[0];
+              if (target) {
+                setSeenMentions((prev) => new Set([...prev, target.id]));
+                void goToMessage(target.id);
+              }
+            }}
+            className="pointer-events-auto relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand text-brand-ink shadow-lg"
+          >
+            <AtSign size={20} />
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-ink shadow">
+              {mentionTargets.length}
+            </span>
+          </button>
+        </div>
+      ) : null}
+
+      <Composer
+        conversationId={conversationId}
+        replyTo={replyTo}
+        editing={editing}
+        onCancelReply={() => setReplyToId(null)}
+        onCancelEdit={() => setEditingId(null)}
+        onSent={() => {}}
+      />
+
+      {menuMessage ? (
+        <MessageMenu
+          message={menuMessage}
+          mine={menuIsMine}
+          starred={starredIds.has(menuMessage.id)}
+          pinned={pinnedMessages.some((p) => p.id === menuMessage.id)}
+          canEdit={menuIsMine && menuAge <= EDIT_WINDOW_MS && menuMessage.deletedAt === null && !menuMessage.localStatus}
+          canDeleteForAll={menuIsMine && menuAge <= DELETE_FOR_ALL_WINDOW_MS && menuMessage.deletedAt === null && !menuMessage.localStatus}
+          onClose={closeMenu}
+          onReply={() => {
+            closeMenu();
+            setEditingId(null);
+            setReplyToId(menuMessage.id);
+          }}
+          onEdit={() => {
+            closeMenu();
+            setReplyToId(null);
+            setEditingId(menuMessage.id);
+          }}
+          onCopy={() => void copyText(menuMessage)}
+          onShare={() => void shareText(menuMessage)}
+          onSelect={() => startSelecting(menuMessage.id)}
+          onForward={() => {
+            closeMenu();
+            setForwardIds([menuMessage.id]);
+          }}
+          onReport={() => {
+            closeMenu();
+            setReportMessageId(menuMessage.id);
+          }}
+          onInfo={() => {
+            closeMenu();
+            setInfoMessageId(menuMessage.id);
+          }}
+        />
+      ) : null}
+
+      {forwardIds ? (
+        <ForwardDialog
+          messageIds={forwardIds}
+          currentConversationId={conversationId}
+          onClose={() => {
+            setForwardIds(null);
+            if (selecting) stopSelecting();
+          }}
+        />
+      ) : null}
+
+      {bulkDeleteOpen ? (
+        <BulkDeleteDialog
+          count={selectedIds.size}
+          canDeleteForAll={canDeleteSelectedForAll}
+          busy={bulkBusy}
+          onClose={() => setBulkDeleteOpen(false)}
+          onDeleteForMe={() => void deleteSelected("me")}
+          onDeleteForAll={() => void deleteSelected("all")}
+        />
+      ) : null}
+
+      {infoOpen ? (
+        <ConversationInfo
+          conversation={conversation}
+          meId={me.id}
+          onClose={() => setInfoOpen(false)}
+          onBlockChange={(blocked) => setBlocked(conversation.otherUserId ?? "", blocked)}
+        />
+      ) : null}
+
+      {searchOpen ? (
+        <ConversationSearch
+          conversationId={conversationId}
+          onClose={() => setSearchOpen(false)}
+          onSelectMessage={(msgId) => {
+            setSearchOpen(false);
+            void goToMessage(msgId);
+          }}
+        />
+      ) : null}
+
+      {reportMessageId ? (
+        <ReportDialog
+          messageId={reportMessageId}
+          onClose={() => setReportMessageId(null)}
+        />
+      ) : null}
+
+      {infoMessageId ? (
+        <MessageInfoDialog
+          messageId={infoMessageId}
+          conversationId={conversationId}
+          onClose={() => setInfoMessageId(null)}
+        />
+      ) : null}
+
+      {toast ? (
+        <div className="pointer-events-none absolute bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-2 text-sm text-white shadow-lg backdrop-blur dark:bg-slate-100/90 dark:text-slate-900">
+          {toast}
+        </div>
+      ) : null}
+    </div>
+  );
+}
