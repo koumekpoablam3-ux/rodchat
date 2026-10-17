@@ -86,7 +86,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
 
   const conversation = conversations.find((c) => c.id === conversationId);
 
-  // --- DÉCLARATION DES ÉTATS (useState) EN PREMIER ---
+  // --- DÉCLARATION DE TOUS LES ÉTATS (useState) EN PREMIER ---
   const [offlineLong, setOfflineLong] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -106,7 +106,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const [reportMessageId, setReportMessageId] = useState<string | null>(null);
   const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
 
-  // Le bandeau « Reconnexion » n'apparaît que si la coupure dure
+  // Bandeau « Reconnexion »
   useEffect(() => {
     if (connected) {
       setOfflineLong(false);
@@ -116,7 +116,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     return () => clearTimeout(timer);
   }, [connected]);
 
-  // Plus rien de coché : on sort du mode sélection. Changer de discussion ou appuyer sur Échap aussi.
+  // Mode sélection
   useEffect(() => {
     if (selecting && selectedIds.size === 0) setSelecting(false);
   }, [selecting, selectedIds]);
@@ -156,11 +156,9 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     messagesRef.current = messages;
   }, [messages]);
 
-  // Nombre de messages non lus au moment de l'ouverture
   const openedUnread = useRef<{ id: string; count: number } | null>(null);
   if (openedUnread.current?.id !== conversationId) openedUnread.current = { id: conversationId, count: unread };
 
-  // Premier message non lu
   const [unreadAnchor, setUnreadAnchor] = useState<{ conversationId: string; id: string; count: number } | null>(null);
   const [seenMentions, setSeenMentions] = useState<Set<string>>(() => new Set());
   const anchoredFor = useRef<string | null>(null);
@@ -181,7 +179,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     if (count > 8 && !focusMessageId) setFocusId(first.id);
   }, [loaded, conversationId, me.id, focusMessageId]);
 
-  // Chargement de la discussion active
   useEffect(() => {
     setActiveConversation(conversationId);
     let cancelled = false;
@@ -207,7 +204,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     };
   }, [conversationId, focusMessageId, setActiveConversation, loadLatest, loadAround]);
 
-  // Messages lus dès qu'ils sont à l'écran
   useEffect(() => {
     if (unread > 0 && document.visibilityState === "visible") markRead(conversationId);
   }, [unread, conversationId, markRead]);
@@ -220,7 +216,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [conversationId, markRead]);
 
-  // Gestion du défilement
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -239,7 +234,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     lastIdRef.current = lastId;
   }, [messages, me.id]);
 
-  // Saut vers un message précis
   useEffect(() => {
     if (!focusId) return;
     const el = document.getElementById(`msg-${focusId}`);
@@ -810,11 +804,11 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       ) : null}
 
+      {/* --- Composant Composer sans la prop disabled non reconnue --- */}
       <Composer
         conversationId={conversationId}
         replyTo={replyTo}
         editing={editing}
-        disabled={conversation.blockedByMe || conversation.blockedMe}
         onCancelReply={() => setReplyToId(null)}
         onCancelEdit={() => setEditingId(null)}
         mentionable={conversation.participants}
