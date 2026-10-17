@@ -804,14 +804,13 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       ) : null}
 
-      {/* --- Composant Composer sans la prop disabled non reconnue --- */}
+      {/* Composant Composer nettoyé des props invalides */}
       <Composer
         conversationId={conversationId}
         replyTo={replyTo}
         editing={editing}
         onCancelReply={() => setReplyToId(null)}
         onCancelEdit={() => setEditingId(null)}
-        mentionable={conversation.participants}
       />
 
       {menuMessage ? (
