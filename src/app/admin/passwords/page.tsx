@@ -62,7 +62,7 @@ export default async function AdminPasswords() {
               {request.user.phone ? (
                 <p className="mt-2 text-sm">
                   Numéro du compte : <span className="font-medium">{formatPhone(request.user.phone)}</span>{" "}
-                  <span className="text-muted">({request.user.verifiedPhone === request.user.phone ? "vérifié" : "non vérifié"}) : appelle ce numéro pour t'assurer que c'est bien la personne.</span>
+                  <span className="text-muted">({request.user.verifiedPhone === request.user.phone ? "vérifié" : "non vérifié"}) : appelle ce numéro pour t&apos;assurer que c&apos;est bien la personne.</span>
                 </p>
               ) : null}
               <p className="mt-2 text-sm font-medium">Ce que la personne a écrit pour s&apos;identifier :</p>

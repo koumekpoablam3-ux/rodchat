@@ -98,6 +98,12 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     return () => clearTimeout(timer);
   }, [connected]);
 
+  const [forwardIds, setForwardIds] = useState<string[] | null>(null);
+  // Sélection de plusieurs messages (copier, mettre en favori, transférer, supprimer)
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
   // Plus rien de coché : on sort du mode sélection. Changer de discussion ou appuyer sur Échap aussi.
   useEffect(() => {
     if (selecting && selectedIds.size === 0) setSelecting(false);
@@ -130,11 +136,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const [replyToId, setReplyToId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
-  const [forwardIds, setForwardIds] = useState<string[] | null>(null);
-  // Sélection de plusieurs messages (copier, mettre en favori, transférer, supprimer)
-  const [selecting, setSelecting] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
