@@ -119,6 +119,28 @@ export function looksLikePhone(identifier: string): boolean {
   return /^(\+|00)[\d\s().-]{7,}$/.test(text);
 }
 
+/**
+ * Numéros possibles pour ce qu'on a tapé à la connexion. Avec « + » ou « 00 » : un seul numéro. Sans indicatif
+ * (« 07 12 34 56 78 », comme à l'inscription) ou avec l'indicatif sans « + » : on essaie chaque pays proposé.
+ * Un identifiant qui contient une lettre n'est jamais un numéro (les noms d'utilisateur en contiennent toujours).
+ */
+export function phoneCandidates(identifier: string): string[] {
+  const text = identifier.trim();
+  if (looksLikePhone(text)) {
+    const phone = parsePhone(text, "");
+    return phone ? [phone] : [];
+  }
+  if (!/^[\d\s().-]{8,}$/.test(text)) return [];
+  const found = new Set<string>();
+  const digits = onlyDigits(text);
+  if (validLength(digits)) found.add(`+${digits}`); // indicatif déjà inclus, sans « + »
+  for (const dial of new Set(COUNTRIES.map((c) => c.dial))) {
+    const phone = toE164(text, dial);
+    if (phone) found.add(phone);
+  }
+  return [...found];
+}
+
 /** « +2250712345678 » → « +225 07 12 34 56 78 » (regroupement simple, pour l'affichage) */
 export function formatPhone(e164: string): string {
   const dial = dialOf(e164);

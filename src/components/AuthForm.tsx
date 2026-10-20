@@ -158,7 +158,7 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
             aria-describedby="login-hint"
           />
           <span id="login-hint" className="mt-1 block text-sm text-muted">
-            Avec un numéro, écris l&apos;indicatif : +225 07 12 34 56 78
+            Avec un numéro, écris-le comme à l&apos;inscription (07 12 34 56 78) ou avec l&apos;indicatif (+225 07 12 34 56 78)
           </span>
         </label>
       )}

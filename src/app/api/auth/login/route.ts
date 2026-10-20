@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { compare, hashSync } from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "@/lib/api";
-import { looksLikePhone, parsePhone } from "@/lib/phone";
+import { phoneCandidates } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
@@ -36,28 +36,38 @@ export async function POST(req: Request) {
     );
   }
 
-  const loginSelect = { ...userSelect, passwordHash: true, suspendedAt: true } as const;
-  let user: Prisma.UserGetPayload<{ select: typeof loginSelect }> | null = null;
+  const loginSelect = { ...userSelect, passwordHash: true, suspendedAt: true, phone: true, verifiedPhone: true } as const;
+  type LoginRow = Prisma.UserGetPayload<{ select: typeof loginSelect }>;
+  let user: LoginRow | null = null;
+  let valid = false;
 
-  if (looksLikePhone(username)) {
-    // Connexion par numéro : le numéro vérifié d'un compte l'emporte ; sinon un numéro annoncé par un seul compte.
-    // Si plusieurs comptes annoncent le même numéro sans qu'aucun soit vérifié, on ne choisit pas : mot de passe refusé.
-    const phone = parsePhone(username, "");
-    if (phone) {
-      const verified = await prisma.user.findUnique({ where: { verifiedPhone: phone }, select: loginSelect });
-      if (verified) user = verified;
-      else {
-        const claimed = await prisma.user.findMany({ where: { phone }, select: loginSelect, take: 2 });
-        if (claimed.length === 1) user = claimed[0];
-      }
+  const phones = phoneCandidates(username);
+  if (phones.length > 0) {
+    // Connexion par numéro (avec ou sans indicatif). Le compte qui a VÉRIFIÉ ce numéro l'emporte ; sinon on regarde
+    // les comptes qui l'annoncent seulement. Plusieurs peuvent l'annoncer (essais, erreurs) : le mot de passe
+    // départage, et si deux comptes ont le même mot de passe on ne choisit pas.
+    const accounts = await prisma.user.findMany({
+      where: { OR: [{ verifiedPhone: { in: phones } }, { phone: { in: phones } }] },
+      select: loginSelect,
+      take: 6,
+    });
+    const verified = accounts.filter((account) => account.verifiedPhone && phones.includes(account.verifiedPhone));
+    const pool = verified.length > 0 ? verified : accounts;
+    const matching: LoginRow[] = [];
+    for (const account of pool) {
+      if (await compare(password, account.passwordHash)) matching.push(account);
+    }
+    if (pool.length === 0) await compare(password, DUMMY_HASH); // même durée qu'un compte existant
+    if (matching.length === 1) {
+      user = matching[0];
+      valid = true;
     }
   } else {
     user = await prisma.user.findUnique({ where: { username }, select: loginSelect });
+    // Même message ET même durée dans les deux cas : on ne révèle pas si le compte existe
+    valid = await compare(password, user?.passwordHash ?? DUMMY_HASH);
   }
 
-  // Même message ET même durée dans les deux cas : on ne révèle pas si le compte existe
-  const hash = user?.passwordHash ?? DUMMY_HASH;
-  const valid = await compare(password, hash);
   if (!user || !valid) {
     return NextResponse.json(
       { error: "Numéro, nom d'utilisateur ou mot de passe incorrect." },
@@ -74,8 +84,16 @@ export async function POST(req: Request) {
   }
 
   await startSession(user.id);
-  const { passwordHash: _passwordHash, suspendedAt: _suspendedAt, ...publicUser } = user;
+  const {
+    passwordHash: _passwordHash,
+    suspendedAt: _suspendedAt,
+    phone: _phone,
+    verifiedPhone: _verifiedPhone,
+    ...publicUser
+  } = user;
   void _passwordHash;
   void _suspendedAt;
+  void _phone;
+  void _verifiedPhone;
   return NextResponse.json({ user: serializeUser(publicUser) });
 }
