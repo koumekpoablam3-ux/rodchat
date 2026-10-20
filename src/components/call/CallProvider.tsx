@@ -115,6 +115,8 @@ const SIGNALING_GRACE_MS = 75_000;
 /** Connexion directe perdue : on laisse ce temps au navigateur (et à une relance ICE) pour la retrouver avant de raccrocher */
 const MEDIA_GRACE_MS = 30_000;
 const MAX_ICE_RESTARTS = 3;
+/** Sans connexion directe après ce délai, on abandonne avec un message qui dit pourquoi (au lieu d'attendre l'échec du navigateur) */
+const CONNECT_TIMEOUT_MS = 35_000;
 
 const END_NOTICE: Record<string, string> = {
   declined: "Appel refusé.",
@@ -148,6 +150,9 @@ export default function CallProvider({ children }: { children: React.ReactNode }
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Pour comprendre un échec : TURN configuré ? candidats envoyés, relais obtenus, candidats reçus de l'autre appareil */
+  const diag = useRef({ turn: false, sent: 0, relay: 0, received: 0 });
   const outageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartAttempts = useRef(0);
   const batcherRef = useRef<ReturnType<typeof createCandidateBatcher> | null>(null);
@@ -185,7 +190,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), 5000);
+    const timer = setTimeout(() => setNotice(""), 9000);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -196,6 +201,9 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     disconnectTimer.current = null;
     if (restartTimer.current) clearTimeout(restartTimer.current);
     restartTimer.current = null;
+    if (connectTimer.current) clearTimeout(connectTimer.current);
+    connectTimer.current = null;
+    diag.current = { turn: false, sent: 0, relay: 0, received: 0 };
     if (outageTimer.current) clearTimeout(outageTimer.current);
     outageTimer.current = null;
     restartAttempts.current = 0;
@@ -248,8 +256,28 @@ export default function CallProvider({ children }: { children: React.ReactNode }
   /** Crée la connexion WebRTC avec l'autre appareil et y branche le micro (et la caméra) */
   const buildPeer = useCallback(
     async (callId: string, stream: MediaStream) => {
-      const pc = new RTCPeerConnection({ iceServers: await fetchIceServers() });
+      const iceServers = await fetchIceServers();
+      const pc = new RTCPeerConnection({ iceServers });
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      diag.current = {
+        turn: iceServers.some((server) => [server.urls].flat().some((url) => url.startsWith("turn"))),
+        sent: 0,
+        relay: 0,
+        received: 0,
+      };
+      const failure = (base: string) => {
+        const d = diag.current;
+        return `${base} (TURN ${d.turn ? "oui" : "non"} · candidats envoyés ${d.sent}, dont relais ${d.relay} · reçus ${d.received})`;
+      };
+
+      // Jamais connecté au bout de 35 s : on dit pourquoi
+      if (connectTimer.current) clearTimeout(connectTimer.current);
+      connectTimer.current = setTimeout(() => {
+        connectTimer.current = null;
+        if (pcRef.current === pc && pc.connectionState !== "connected") {
+          hangUp(failure("La connexion directe n'a pas abouti."));
+        }
+      }, CONNECT_TIMEOUT_MS);
 
       batcherRef.current?.cancel();
       const batcher = createCandidateBatcher((candidates) => {
@@ -258,8 +286,13 @@ export default function CallProvider({ children }: { children: React.ReactNode }
       batcherRef.current = batcher;
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) batcher.add(event.candidate.toJSON());
-        else batcher.flush(); // fin de la collecte : on envoie le reste tout de suite
+        if (event.candidate) {
+          diag.current.sent += 1;
+          if (event.candidate.type === "relay") diag.current.relay += 1;
+          batcher.add(event.candidate.toJSON());
+        } else {
+          batcher.flush(); // fin de la collecte : on envoie le reste tout de suite
+        }
       };
       pc.ontrack = (event) => {
         const [remote] = event.streams;
@@ -272,6 +305,8 @@ export default function CallProvider({ children }: { children: React.ReactNode }
           disconnectTimer.current = null;
           if (restartTimer.current) clearTimeout(restartTimer.current);
           restartTimer.current = null;
+          if (connectTimer.current) clearTimeout(connectTimer.current);
+          connectTimer.current = null;
           restartAttempts.current = 0;
           stopRingtone();
           setCall((prev) =>
@@ -285,7 +320,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
           const everConnected = callRef.current?.startedAt != null;
           // Jamais connecté : inutile d'attendre, aucun chemin réseau n'a abouti (réseau qui bloque la connexion directe)
           if (state === "failed" && !everConnected) {
-            hangUp("La connexion a échoué. Réessaie, ou change de réseau.");
+            hangUp(failure("La connexion a échoué. Réessaie, ou change de réseau."));
             return;
           }
           setCall((prev) => (prev ? { ...prev, unstable: true } : prev));
@@ -538,6 +573,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
           }
         } else if (data.candidate || data.candidates) {
           for (const candidate of candidatesOf(data)) {
+            diag.current.received += 1;
             if (pc.remoteDescription) await pc.addIceCandidate(candidate).catch(() => {});
             else pendingCandidates.current.push(candidate);
           }
