@@ -70,7 +70,7 @@ export default function ForgotPasswordForm() {
       </div>
 
       <label className="auth-rise auth-rise-2 block">
-        <span className="mb-1 block text-sm font-medium">Nom d&apos;utilisateur</span>
+        <span className="mb-1 block text-sm font-medium">Numéro ou nom d&apos;utilisateur</span>
         <input
           className={inputClass}
           value={username}
@@ -78,8 +78,13 @@ export default function ForgotPasswordForm() {
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
+          maxLength={40}
           required
+          aria-describedby="forgot-id-hint"
         />
+        <span id="forgot-id-hint" className="mt-1 block text-sm text-muted">
+          Le numéro avec lequel tu t&apos;es inscrit, par exemple 07 12 34 56 78 ou +225 07 12 34 56 78.
+        </span>
       </label>
 
       <div className="auth-rise auth-rise-3 space-y-4">

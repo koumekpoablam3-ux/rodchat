@@ -21,12 +21,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const POLL_MS = 500;
+// Chaque lecture est une requête vers Neon, et un flux reste ouvert tant que l'application l'est : on lit vite quand
+// ça compte (appel en cours, échanges en cours) et lentement au repos. Neon (et le quota de Vercel) s'en trouvent
+// bien moins sollicités, et la file de signalisation des appels reste réactive.
+const POLL_CALL_MS = 250; // appel en cours (le navigateur ajoute ?fast=1)
+const POLL_BUSY_MS = 400; // de l'activité vient d'arriver
+const POLL_IDLE_MS = 1_000; // au repos
+const BUSY_WINDOW_MS = 15_000;
 const BEAT_MS = 8_000;
-const SWEEP_MS = 5_000;
-const PRESENCE_MS = 5_000;
+const SWEEP_CALL_MS = 5_000;
+const SWEEP_IDLE_MS = 10_000;
+const SCHEDULED_MS = 15_000;
+const PRESENCE_MS = 10_000;
 const PING_MS = 15_000;
-const LAST_SEEN_MS = 20_000;
+const LAST_SEEN_MS = 60_000;
 const LIFETIME_MS = 50_000;
 
 const CONN_ID = /^[A-Za-z0-9_-]{8,64}$/;
@@ -44,6 +52,7 @@ export async function GET(req: Request) {
   if (!CONN_ID.test(connId)) return badRequest("Identifiant de connexion invalide.");
   const resume = params.get("resume") === "1";
   const after = Number(params.get("after"));
+  const fast = params.get("fast") === "1";
 
   // Cet onglet m'appartient (un identifiant déjà pris par quelqu'un d'autre est refusé)
   const existing = await prisma.realtimeConnection.findUnique({ where: { id: connId }, select: { userId: true } });
@@ -123,6 +132,8 @@ export async function GET(req: Request) {
         const deadline = Date.now() + LIFETIME_MS;
         let lastBeat = Date.now();
         let lastSweep = Date.now();
+        let lastScheduled = Date.now();
+        let lastActivity = resume ? 0 : Date.now();
         let lastPresence = Date.now();
         let lastPing = Date.now();
         let lastSeenWrite = 0;
@@ -141,10 +152,12 @@ export async function GET(req: Request) {
           }
 
           while (!closed && Date.now() < deadline) {
-            for (const row of await fetchEvents()) {
+            const rows = await fetchEvents();
+            for (const row of rows) {
               send(row.event, row.payload, row.id);
               cursor = row.id;
             }
+            if (rows.length > 0) lastActivity = Date.now();
 
             const now = Date.now();
 
@@ -168,10 +181,14 @@ export async function GET(req: Request) {
               }
             }
 
-            if (now - lastSweep >= SWEEP_MS) {
+            if (now - lastSweep >= (fast ? SWEEP_CALL_MS : SWEEP_IDLE_MS)) {
               lastSweep = now;
               await sweepCalls();
-              // Messages programmés dont l'heure est venue (sans jamais faire tomber le flux)
+            }
+
+            // Messages programmés dont l'heure est venue (sans jamais faire tomber le flux)
+            if (now - lastScheduled >= SCHEDULED_MS) {
+              lastScheduled = now;
               await sendDueScheduledMessages().catch((error) => console.error("[scheduled]", error));
             }
 
@@ -202,7 +219,7 @@ export async function GET(req: Request) {
               write(": ping\n\n");
             }
 
-            await sleep(POLL_MS);
+            await sleep(fast ? POLL_CALL_MS : Date.now() - lastActivity < BUSY_WINDOW_MS ? POLL_BUSY_MS : POLL_IDLE_MS);
           }
           send("rotate", { cursor });
         } catch (error) {

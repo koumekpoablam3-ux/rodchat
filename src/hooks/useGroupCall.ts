@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { acquireMedia, fetchIceServers, mediaErrorMessage } from "@/lib/call-media";
+import {
+  CALL_BITRATE,
+  acquireMedia,
+  candidatesOf,
+  capSenderBitrates,
+  createCandidateBatcher,
+  fetchIceServers,
+  mediaErrorMessage,
+} from "@/lib/call-media";
 import { startRingtone, stopRingtone } from "@/lib/ringtone";
 import { getSocket } from "@/lib/socket";
 import type { CallKind, CallPerson, ConversationSummary, OngoingGroupCall } from "@/types/chat";
@@ -41,10 +49,20 @@ type IncomingPayload = {
 type SignalPayload = {
   callId: string;
   from: string;
-  data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+  data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; candidates?: RTCIceCandidateInit[] };
 };
 
-type Connection = { pc: RTCPeerConnection; pending: RTCIceCandidateInit[] };
+type Connection = {
+  pc: RTCPeerConnection;
+  pending: RTCIceCandidateInit[];
+  batcher: ReturnType<typeof createCandidateBatcher>;
+};
+
+/**
+ * Flux de signalisation coupé pendant un appel : les connexions directes continuent. Le serveur retire une personne
+ * dont l'appareil ne donne plus signe de vie depuis 45 s ; on raccroche un peu avant, pour rester cohérent.
+ */
+const SIGNALING_GRACE_MS = 40_000;
 
 type Options = {
   conversationsRef: MutableRefObject<ConversationSummary[]>;
@@ -89,6 +107,7 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
   }, [inGroupCall]);
 
   const groupRef = useRef<ActiveGroupCall | null>(null);
+  const outageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ongoingRef = useRef(ongoing);
   const localStreamRef = useRef<MediaStream | null>(null);
   const connections = useRef(new Map<string, Connection>());
@@ -124,7 +143,12 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
   /** Libère tout : sonnerie, connexions, micro et caméra */
   const teardown = useCallback(() => {
     stopRingtone();
-    connections.current.forEach(({ pc }) => pc.close());
+    if (outageTimer.current) clearTimeout(outageTimer.current);
+    outageTimer.current = null;
+    connections.current.forEach(({ pc, batcher }) => {
+      batcher.cancel();
+      pc.close();
+    });
     connections.current.clear();
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
@@ -133,7 +157,9 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
 
   const removePeer = useCallback(
     (peerId: string) => {
-      connections.current.get(peerId)?.pc.close();
+      const existing = connections.current.get(peerId);
+      existing?.batcher.cancel();
+      existing?.pc.close();
       connections.current.delete(peerId);
       setGroup((prev) => (prev ? { ...prev, peers: prev.peers.filter((p) => p.id !== peerId) } : prev));
     },
@@ -148,17 +174,16 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
 
       const pc = new RTCPeerConnection({ iceServers: iceServers.current });
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      const connection: Connection = { pc, pending: [] };
+      // Candidats ICE par lots : un envoi par candidat saturait la file de signalisation (6 personnes = 5 connexions)
+      const batcher = createCandidateBatcher((candidates) => {
+        getSocket().emit("groupcall:signal", { callId, to: peerId, data: { candidates } });
+      });
+      const connection: Connection = { pc, pending: [], batcher };
       connections.current.set(peerId, connection);
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          getSocket().emit("groupcall:signal", {
-            callId,
-            to: peerId,
-            data: { candidate: event.candidate.toJSON() },
-          });
-        }
+        if (event.candidate) batcher.add(event.candidate.toJSON());
+        else batcher.flush();
       };
       pc.ontrack = (event) => {
         const [remote] = event.streams;
@@ -169,6 +194,7 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
           stopRingtone();
           updatePeer(peerId, { connected: true });
           setGroup((prev) => (prev ? { ...prev, startedAt: prev.startedAt ?? Date.now() } : prev));
+          void capSenderBitrates(pc, { audio: CALL_BITRATE.audio, video: CALL_BITRATE.groupVideo });
         } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
           updatePeer(peerId, { connected: false });
         }
@@ -447,9 +473,11 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
               data: { description: { type: answer.type, sdp: answer.sdp } },
             });
           }
-        } else if (data.candidate && connection) {
-          if (connection.pc.remoteDescription) await connection.pc.addIceCandidate(data.candidate).catch(() => {});
-          else connection.pending.push(data.candidate);
+        } else if ((data.candidate || data.candidates) && connection) {
+          for (const candidate of candidatesOf(data)) {
+            if (connection.pc.remoteDescription) await connection.pc.addIceCandidate(candidate).catch(() => {});
+            else connection.pending.push(candidate);
+          }
         }
       } catch {
         removePeer(from);
@@ -457,10 +485,28 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
     };
 
     const onDisconnect = () => {
-      if (groupRef.current) {
+      const current = groupRef.current;
+      if (!current) return;
+      // Pas encore dans l'appel (sonnerie) : sans signalisation, rien ne peut aboutir
+      if (current.phase !== "active") {
         teardown();
         notifyRef.current("Connexion perdue : l'appel est terminé.");
+        return;
       }
+      if (!outageTimer.current) {
+        outageTimer.current = setTimeout(() => {
+          outageTimer.current = null;
+          if (groupRef.current) {
+            teardown();
+            notifyRef.current("Connexion perdue : l'appel est terminé.");
+          }
+        }, SIGNALING_GRACE_MS);
+      }
+    };
+
+    const onReconnect = () => {
+      if (outageTimer.current) clearTimeout(outageTimer.current);
+      outageTimer.current = null;
     };
 
     socket.on("groupcall:incoming", onIncoming);
@@ -471,6 +517,7 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
     socket.on("groupcall:peer-left", onPeerLeft);
     socket.on("groupcall:signal", onSignal);
     socket.on("disconnect", onDisconnect);
+    socket.on("connect", onReconnect);
     return () => {
       socket.off("groupcall:incoming", onIncoming);
       socket.off("groupcall:update", onUpdate);
@@ -480,6 +527,7 @@ export function useGroupCall({ conversationsRef, isDirectBusy, notify }: Options
       socket.off("groupcall:peer-left", onPeerLeft);
       socket.off("groupcall:signal", onSignal);
       socket.off("disconnect", onDisconnect);
+      socket.off("connect", onReconnect);
     };
   }, [createConnection, removePeer, setGroup, teardown]);
 

@@ -3,13 +3,14 @@ import { hash } from "bcryptjs";
 import { z } from "zod";
 import { isAdminUsername } from "@/lib/admin";
 import { badRequest, clientIp } from "@/lib/api";
+import { phoneCandidates } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
-  username: z.string().trim().toLowerCase().min(1, "Indique ton nom d'utilisateur.").max(40),
+  username: z.string().trim().toLowerCase().min(1, "Indique ton numéro de téléphone ou ton nom d'utilisateur.").max(40),
   newPassword: z
     .string()
     .min(8, "Le mot de passe doit faire au moins 8 caractères.")
@@ -40,9 +41,27 @@ export async function POST(req: Request) {
   // Calculé dans tous les cas : le temps de réponse ne dit pas si le compte existe
   const newPasswordHash = await hash(newPassword, 10);
 
-  const user = await prisma.user.findUnique({ where: { username }, select: { id: true, username: true } });
-  // Les administrateurs n'utilisent pas ce circuit (voir le README) ; au plus 3 demandes en attente par compte
-  if (user && !isAdminUsername(user.username)) {
+  // On peut s'identifier par son numéro (comme à la connexion : « 07 12 34 56 78 » ou « +225 07 12 34 56 78 »)
+  // ou par son nom d'utilisateur, que la plupart des gens ne connaissent pas puisqu'il est généré à l'inscription.
+  const phones = phoneCandidates(username);
+  let targets: { id: string; username: string }[] = [];
+  if (phones.length > 0) {
+    const accounts = await prisma.user.findMany({
+      where: { OR: [{ verifiedPhone: { in: phones } }, { phone: { in: phones } }] },
+      select: { id: true, username: true, verifiedPhone: true },
+      take: 6,
+    });
+    // Le compte qui a vérifié ce numéro l'emporte ; sinon tous ceux qui l'annoncent (3 au plus) : l'administrateur tranche
+    const verified = accounts.filter((account) => account.verifiedPhone && phones.includes(account.verifiedPhone));
+    targets = (verified.length > 0 ? verified : accounts).slice(0, 3);
+  } else {
+    const user = await prisma.user.findUnique({ where: { username }, select: { id: true, username: true } });
+    if (user) targets = [user];
+  }
+
+  for (const user of targets) {
+    // Les administrateurs n'utilisent pas ce circuit (voir le README) ; au plus 3 demandes en attente par compte
+    if (isAdminUsername(user.username)) continue;
     const pending = await prisma.passwordResetRequest.count({ where: { userId: user.id, status: "PENDING" } });
     if (pending < 3) {
       await prisma.passwordResetRequest.create({ data: { userId: user.id, newPasswordHash, proof } });

@@ -10,8 +10,14 @@ import { getRealtime } from "./realtime";
 
 /** Au bout de ce délai sans réponse, un appel qui sonne est « manqué » */
 export const RING_TIMEOUT_MS = 45_000;
-/** Un participant dont le flux n'a plus donné signe de vie depuis ce délai a quitté l'appel */
+/** Un participant d'un appel de groupe dont le flux n'a plus donné signe de vie depuis ce délai a quitté l'appel */
 const CALL_ALIVE_MS = 45_000;
+/**
+ * Appel à deux déjà décroché : le son et l'image passent en direct entre les appareils, une coupure du flux de
+ * signalisation (réseau mobile qui change, onglet en veille) ne doit pas le terminer au bout de quelques secondes.
+ * Les navigateurs raccrochent d'eux-mêmes bien avant (75 s) ou dès que la connexion directe est perdue.
+ */
+const DIRECT_ALIVE_MS = 90_000;
 
 const ONGOING = ["RINGING", "ACTIVE"] as const;
 
@@ -210,25 +216,29 @@ export async function sweepCalls() {
     }
     for (const p of call.participants) connIds.add(p.connId);
   }
-  const fresh = new Set(
+  const beats = new Map<string, number>(
     (
       await prisma.realtimeConnection.findMany({
-        where: { id: { in: Array.from(connIds) }, beatAt: { gt: new Date(now - CALL_ALIVE_MS) } },
-        select: { id: true },
+        where: { id: { in: Array.from(connIds) }, beatAt: { gt: new Date(now - Math.max(CALL_ALIVE_MS, DIRECT_ALIVE_MS)) } },
+        select: { id: true, beatAt: true },
       })
-    ).map((c) => c.id),
+    ).map((c): [string, number] => [c.id, c.beatAt.getTime()]),
   );
+  const aliveWithin = (id: string | null | undefined, ms: number) => {
+    const beat = id ? beats.get(id) : undefined;
+    return beat !== undefined && beat > now - ms;
+  };
 
   for (const call of active) {
     if (call.calleeId) {
       // Appel à deux décroché : si l'un des deux appareils a disparu, l'appel s'arrête
       if (call.status === "ACTIVE") {
-        const gone = [call.callerConnId, call.calleeConnId].some((id) => !id || !fresh.has(id));
+        const gone = [call.callerConnId, call.calleeConnId].some((id) => !aliveWithin(id, DIRECT_ALIVE_MS));
         if (gone) await endDirectCall(call.id, "ENDED", "failed");
       }
     } else {
       for (const p of call.participants) {
-        if (!fresh.has(p.connId)) await leaveGroupCall(call.id, p.userId, p.connId);
+        if (!aliveWithin(p.connId, CALL_ALIVE_MS)) await leaveGroupCall(call.id, p.userId, p.connId);
       }
     }
   }

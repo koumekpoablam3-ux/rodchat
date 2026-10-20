@@ -11,7 +11,15 @@ import {
 } from "react";
 import { useChat } from "@/components/chat/ChatProvider";
 import { useGroupCall } from "@/hooks/useGroupCall";
-import { acquireMedia, fetchIceServers, mediaErrorMessage } from "@/lib/call-media";
+import {
+  CALL_BITRATE,
+  acquireMedia,
+  candidatesOf,
+  capSenderBitrates,
+  createCandidateBatcher,
+  fetchIceServers,
+  mediaErrorMessage,
+} from "@/lib/call-media";
 import { startRingtone, stopRingtone } from "@/lib/ringtone";
 import { SW_ENABLED } from "@/lib/pwa";
 import { getSocket } from "@/lib/socket";
@@ -70,7 +78,12 @@ type IncomingPayload = {
 
 type SignalPayload = {
   callId: string;
-  data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; screen?: boolean };
+  data: {
+    description?: RTCSessionDescriptionInit;
+    candidate?: RTCIceCandidateInit;
+    candidates?: RTCIceCandidateInit[];
+    screen?: boolean;
+  };
 };
 
 /** Notification système quand un appel arrive alors que l'onglet est en arrière-plan */
@@ -96,6 +109,12 @@ async function notifyIncoming(payload: IncomingPayload) {
     /* notification impossible : la sonnerie suffit */
   }
 }
+
+/** Après une coupure du flux de signalisation, un appel déjà établi continue (le son passe en direct) : on ne raccroche qu'après ce délai */
+const SIGNALING_GRACE_MS = 75_000;
+/** Connexion directe perdue : on laisse ce temps au navigateur (et à une relance ICE) pour la retrouver avant de raccrocher */
+const MEDIA_GRACE_MS = 30_000;
+const MAX_ICE_RESTARTS = 3;
 
 const END_NOTICE: Record<string, string> = {
   declined: "Appel refusé.",
@@ -128,6 +147,10 @@ export default function CallProvider({ children }: { children: React.ReactNode }
   const screenStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartAttempts = useRef(0);
+  const batcherRef = useRef<ReturnType<typeof createCandidateBatcher> | null>(null);
   const conversationsRef = useRef(conversations);
   const groupBusyRef = useRef(false);
 
@@ -145,6 +168,11 @@ export default function CallProvider({ children }: { children: React.ReactNode }
   );
 
   const showNotice = useCallback((message: string) => setNotice(message), []);
+
+  // Les serveurs STUN/TURN sont demandés d'avance : décrocher ne doit pas attendre une requête de plus
+  useEffect(() => {
+    void fetchIceServers();
+  }, []);
 
   const groupCall = useGroupCall({
     conversationsRef,
@@ -166,6 +194,13 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     stopRingtone();
     if (disconnectTimer.current) clearTimeout(disconnectTimer.current);
     disconnectTimer.current = null;
+    if (restartTimer.current) clearTimeout(restartTimer.current);
+    restartTimer.current = null;
+    if (outageTimer.current) clearTimeout(outageTimer.current);
+    outageTimer.current = null;
+    restartAttempts.current = 0;
+    batcherRef.current?.cancel();
+    batcherRef.current = null;
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -187,11 +222,28 @@ export default function CallProvider({ children }: { children: React.ReactNode }
   const hangUp = useCallback(
     (message?: string) => {
       const current = callRef.current;
-      if (current?.callId) getSocket().emit("call:end", { callId: current.callId });
+      // Réessaie tant que le réseau manque (jusqu'à 15 s) : sinon l'autre personne resterait en ligne dans le vide
+      if (current?.callId) getSocket().timeout(15_000).emit("call:end", { callId: current.callId }, () => {});
       finish(message);
     },
     [finish],
   );
+
+  /** L'appelant relance la recherche d'un chemin réseau (changement de Wi-Fi/4G, trou de couverture) sans raccrocher */
+  const restartIce = useCallback(async () => {
+    const pc = pcRef.current;
+    const current = callRef.current;
+    if (!pc || !current?.callId || current.direction !== "outgoing") return;
+    if (restartAttempts.current >= MAX_ICE_RESTARTS) return;
+    restartAttempts.current += 1;
+    try {
+      const offer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(offer);
+      getSocket().emit("call:signal", { callId: current.callId, data: { description: { type: offer.type, sdp: offer.sdp } } });
+    } catch {
+      /* la minuterie de raccrochage prend le relais */
+    }
+  }, []);
 
   /** Crée la connexion WebRTC avec l'autre appareil et y branche le micro (et la caméra) */
   const buildPeer = useCallback(
@@ -199,10 +251,15 @@ export default function CallProvider({ children }: { children: React.ReactNode }
       const pc = new RTCPeerConnection({ iceServers: await fetchIceServers() });
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
+      batcherRef.current?.cancel();
+      const batcher = createCandidateBatcher((candidates) => {
+        getSocket().emit("call:signal", { callId, data: { candidates } });
+      });
+      batcherRef.current = batcher;
+
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          getSocket().emit("call:signal", { callId, data: { candidate: event.candidate.toJSON() } });
-        }
+        if (event.candidate) batcher.add(event.candidate.toJSON());
+        else batcher.flush(); // fin de la collecte : on envoie le reste tout de suite
       };
       pc.ontrack = (event) => {
         const [remote] = event.streams;
@@ -213,27 +270,48 @@ export default function CallProvider({ children }: { children: React.ReactNode }
         if (state === "connected") {
           if (disconnectTimer.current) clearTimeout(disconnectTimer.current);
           disconnectTimer.current = null;
+          if (restartTimer.current) clearTimeout(restartTimer.current);
+          restartTimer.current = null;
+          restartAttempts.current = 0;
           stopRingtone();
           setCall((prev) =>
             prev ? { ...prev, phase: "active", startedAt: prev.startedAt ?? Date.now(), unstable: false } : prev,
           );
-        } else if (state === "disconnected") {
+          void capSenderBitrates(pc, {
+            audio: CALL_BITRATE.audio,
+            video: screenStreamRef.current ? CALL_BITRATE.screen : CALL_BITRATE.video,
+          });
+        } else if (state === "disconnected" || state === "failed") {
+          const everConnected = callRef.current?.startedAt != null;
+          // Jamais connecté : inutile d'attendre, aucun chemin réseau n'a abouti (réseau qui bloque la connexion directe)
+          if (state === "failed" && !everConnected) {
+            hangUp("La connexion a échoué. Réessaie, ou change de réseau.");
+            return;
+          }
           setCall((prev) => (prev ? { ...prev, unstable: true } : prev));
+          // Les coupures brèves sont fréquentes sur mobile : on relance la recherche de chemin avant de renoncer
+          if (!restartTimer.current) {
+            restartTimer.current = setTimeout(
+              () => {
+                restartTimer.current = null;
+                void restartIce();
+              },
+              state === "failed" ? 0 : 3_000,
+            );
+          }
           if (!disconnectTimer.current) {
             disconnectTimer.current = setTimeout(
               () => hangUp("La connexion a été interrompue. Réessaie dans un instant."),
-              10_000,
+              MEDIA_GRACE_MS,
             );
           }
-        } else if (state === "failed") {
-          hangUp("La connexion a échoué. Réessaie, ou change de réseau.");
         }
       };
 
       pcRef.current = pc;
       return pc;
     },
-    [setCall, hangUp],
+    [setCall, hangUp, restartIce],
   );
 
   const startCall = useCallback(
@@ -368,6 +446,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
     const camera = localStreamRef.current?.getVideoTracks()[0] ?? null;
     await sender?.replaceTrack(camera).catch(() => {});
+    if (pcRef.current) void capSenderBitrates(pcRef.current, { video: CALL_BITRATE.video });
     const callId = callRef.current?.callId;
     if (callId) getSocket().emit("call:signal", { callId, data: { screen: false } });
     setCall((prev) => (prev ? { ...prev, sharing: false } : prev));
@@ -384,6 +463,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
       if (!track) return screen.getTracks().forEach((t) => t.stop());
       await sender.replaceTrack(track);
       screenStreamRef.current = screen;
+      void capSenderBitrates(pc, { video: CALL_BITRATE.screen }); // du texte à l'écran demande plus qu'un visage
       // La personne arrête le partage avec le bouton du navigateur
       track.addEventListener("ended", () => void stopShare());
       const callId = callRef.current?.callId;
@@ -456,9 +536,11 @@ export default function CallProvider({ children }: { children: React.ReactNode }
             await pc.setLocalDescription(answer);
             socket.emit("call:signal", { callId, data: { description: { type: answer.type, sdp: answer.sdp } } });
           }
-        } else if (data.candidate) {
-          if (pc.remoteDescription) await pc.addIceCandidate(data.candidate).catch(() => {});
-          else pendingCandidates.current.push(data.candidate);
+        } else if (data.candidate || data.candidates) {
+          for (const candidate of candidatesOf(data)) {
+            if (pc.remoteDescription) await pc.addIceCandidate(candidate).catch(() => {});
+            else pendingCandidates.current.push(candidate);
+          }
         } else if (typeof data.screen === "boolean") {
           const sharing = data.screen;
           setCall((prev) => (prev ? { ...prev, remoteSharing: sharing } : prev));
@@ -486,7 +568,26 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     };
 
     const onDisconnect = () => {
-      if (callRef.current) finish("Connexion perdue : l'appel est terminé.");
+      const current = callRef.current;
+      if (!current) return;
+      // Sonnerie en cours : sans signalisation, l'appel ne peut pas aboutir
+      if (current.phase === "calling" || current.phase === "ringing") {
+        finish("Connexion perdue : l'appel est terminé.");
+        return;
+      }
+      // Appel établi : le son et l'image passent en direct entre les deux appareils, la coupure du flux de
+      // signalisation n'y change rien. On ne raccroche que si elle dure vraiment (le serveur fait de même).
+      if (!outageTimer.current) {
+        outageTimer.current = setTimeout(() => {
+          outageTimer.current = null;
+          if (callRef.current) finish("Connexion perdue : l'appel est terminé.");
+        }, SIGNALING_GRACE_MS);
+      }
+    };
+
+    const onReconnect = () => {
+      if (outageTimer.current) clearTimeout(outageTimer.current);
+      outageTimer.current = null;
     };
 
     socket.on("call:incoming", onIncoming);
@@ -495,6 +596,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     socket.on("call:ended", onEnded);
     socket.on("call:handled", onHandled);
     socket.on("disconnect", onDisconnect);
+    socket.on("connect", onReconnect);
     return () => {
       socket.off("call:incoming", onIncoming);
       socket.off("call:accepted", onAccepted);
@@ -502,6 +604,7 @@ export default function CallProvider({ children }: { children: React.ReactNode }
       socket.off("call:ended", onEnded);
       socket.off("call:handled", onHandled);
       socket.off("disconnect", onDisconnect);
+      socket.off("connect", onReconnect);
     };
   }, [setCall, buildPeer, hangUp, finish]);
 

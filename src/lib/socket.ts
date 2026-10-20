@@ -75,9 +75,13 @@ class RealtimeClient {
    * À appeler avec true au début de l'appel et false à la fin.
    */
   holdOpen(on: boolean) {
+    const before = this.holds;
     this.holds = Math.max(0, this.holds + (on ? 1 : -1));
     if (this.holds === 0) this.schedulePause();
     else this.cancelPause();
+    // Début d'appel : on rouvre le flux en mode rapide, à partir du dernier événement reçu (rien n'est perdu).
+    // À la fin de l'appel, la prochaine rotation (≤ 50 s) revient d'elle-même au rythme normal.
+    if (before === 0 && this.holds > 0 && this.wanted && !this.paused && this.source) this.open(true);
     return this;
   }
 
@@ -137,7 +141,13 @@ class RealtimeClient {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
 
-    const query = new URLSearchParams({ conn: this.connId, after: String(this.cursor), resume: resume ? "1" : "0" });
+    const query = new URLSearchParams({
+      conn: this.connId,
+      after: String(this.cursor),
+      resume: resume ? "1" : "0",
+      // Pendant un appel, le serveur lit la file de signalisation plus souvent
+      fast: this.holds > 0 ? "1" : "0",
+    });
     const source = new EventSource(`/api/realtime/stream?${query}`);
     this.source = source;
 
