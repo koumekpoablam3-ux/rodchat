@@ -71,12 +71,26 @@ model User {
   lastSeenVisible   Boolean            @default(true) // montrer ma dernière connexion
   // Incrémenté pour déconnecter tous les appareils (changement de mot de passe, « déconnecter les autres »)
   sessionVersion    Int                @default(0)
+  // Numéro de téléphone (format international, ex. +2250712345678). Saisi à l'inscription, jamais montré aux autres.
+  phone             String?
+  // Rempli seulement quand le numéro est VÉRIFIÉ (par SMS, ou par l'administrateur) : unique, et c'est lui qui sert
+  // à retrouver ses contacts. Un numéro non vérifié ne permet pas de se faire passer pour quelqu'un.
+  verifiedPhone     String?            @unique
+  phoneVerifiedAt   DateTime?
+  // Empreinte (SHA-256) du numéro vérifié : la recherche de contacts compare des empreintes, pas des numéros
+  phoneHash         String?
+  // Les personnes qui ont mon numéro dans leurs contacts peuvent me trouver sur Rodchat
+  phoneDiscoverable Boolean            @default(true)
+  phoneCodes        PhoneVerification[]
   // Compte suspendu par un administrateur : connexion impossible
   suspendedAt       DateTime?
   suspendedReason   String?
   scheduledMessages ScheduledMessage[]
   passwordRequests  PasswordResetRequest[]
   sessions          Session[]
+
+  @@index([phone])
+  @@index([phoneHash])
 }
 
 model Conversation {
@@ -525,4 +539,19 @@ model Session {
 
   @@index([userId, version])
   @@index([lastSeenAt])
+}
+
+// Codes de vérification de numéro envoyés par SMS (valables 10 minutes, 5 essais)
+model PhoneVerification {
+  id        String   @id @default(cuid())
+  userId    String
+  phone     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

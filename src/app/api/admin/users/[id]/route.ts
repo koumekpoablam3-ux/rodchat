@@ -5,13 +5,14 @@ import { z } from "zod";
 import { deleteUserAccount } from "@/lib/account";
 import { isAdminUsername, logAdmin, requireAdmin } from "@/lib/admin";
 import { badRequest, notFound } from "@/lib/api";
+import { clearPhoneVerification, markPhoneVerified } from "@/lib/phone-verify";
 import { prisma } from "@/lib/prisma";
 import { forgetSessionVersion } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
-  action: z.enum(["suspend", "unsuspend", "delete", "reset-password", "logout"]),
+  action: z.enum(["suspend", "unsuspend", "delete", "reset-password", "logout", "verify-phone", "unverify-phone"]),
   reason: z.string().trim().max(200).optional(),
 });
 
@@ -70,6 +71,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       forgetSessionVersion(target.id);
       await logAdmin(admin, "Mot de passe réinitialisé", who);
       return NextResponse.json({ ok: true, password });
+    }
+    case "verify-phone": {
+      // L'administrateur s'est assuré que le numéro est bien celui de la personne (appel, message…)
+      const owner = await prisma.user.findUnique({ where: { id: target.id }, select: { phone: true } });
+      if (!owner?.phone) return badRequest("Ce compte n'a pas de numéro de téléphone.");
+      const result = await markPhoneVerified(target.id, owner.phone);
+      if (result === "taken") return badRequest("Ce numéro est déjà vérifié sur un autre compte.");
+      await logAdmin(admin, "Numéro vérifié", who, owner.phone);
+      return NextResponse.json({ ok: true });
+    }
+    case "unverify-phone": {
+      await clearPhoneVerification(target.id);
+      await logAdmin(admin, "Vérification du numéro retirée", who);
+      return NextResponse.json({ ok: true });
     }
     case "delete": {
       await deleteUserAccount(target.id);

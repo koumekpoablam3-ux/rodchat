@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Eye, EyeOff, Loader2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { COUNTRIES, guessDial } from "@/lib/phone";
 
 type Mode = "login" | "register";
 
@@ -30,6 +31,8 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
   }, []);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [dial, setDial] = useState("225");
+  const [national, setNational] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
@@ -41,6 +44,8 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
   // Ordinateur : le curseur est déjà dans le premier champ. Téléphone : non, pour ne pas ouvrir le clavier tout de suite.
   useEffect(() => {
     if (window.matchMedia("(pointer: fine)").matches) firstField.current?.focus();
+    // Pays proposé d'après le fuseau horaire de l'appareil (modifiable)
+    setDial(guessDial(Intl.DateTimeFormat().resolvedOptions().timeZone));
   }, []);
 
   const isRegister = mode === "register";
@@ -54,7 +59,9 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          isRegister ? { username, displayName, password, ...(inviteRequired ? { inviteCode } : {}) } : { username, password },
+          isRegister
+            ? { displayName, dial, national, password, ...(inviteRequired ? { inviteCode } : {}) }
+            : { username, password },
         ),
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -78,7 +85,9 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
           {isRegister ? "Créer ton compte" : "Content de te revoir"}
         </h2>
         <p className="mt-1 text-muted">
-          {isRegister ? "Il te faut juste un nom et un mot de passe." : "Connecte-toi pour retrouver tes discussions."}
+          {isRegister
+            ? "Ton numéro de téléphone, un nom et un mot de passe suffisent."
+            : "Connecte-toi avec ton numéro ou ton nom d'utilisateur."}
         </p>
       </div>
 
@@ -97,26 +106,62 @@ export default function AuthForm({ mode, inviteRequired = false }: { mode: Mode;
         </label>
       ) : null}
 
-      <label className="auth-rise auth-rise-2 block">
-        <span className="mb-1 block text-sm font-medium">Nom d&apos;utilisateur</span>
-        <input
-          ref={isRegister ? undefined : firstField}
-          className={inputClass}
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
-          maxLength={20}
-          required
-          aria-describedby={isRegister ? "username-hint" : undefined}
-        />
-        {isRegister ? (
-          <span id="username-hint" className="mt-1 block text-sm text-muted">
-            3 à 20 caractères : lettres, chiffres ou _.
+      {isRegister ? (
+        <div className="auth-rise auth-rise-2">
+          <label htmlFor="phone" className="mb-1 block text-sm font-medium">
+            Numéro de téléphone
+          </label>
+          <div className="flex gap-2">
+            <select
+              aria-label="Pays"
+              value={dial}
+              onChange={(e) => setDial(e.target.value)}
+              className="h-12 w-[7.5rem] shrink-0 rounded-xl border border-line bg-panel px-2 text-base shadow-sm"
+            >
+              {COUNTRIES.map((country) => (
+                <option key={country.iso} value={country.dial}>
+                  {country.iso} +{country.dial}
+                </option>
+              ))}
+            </select>
+            <input
+              id="phone"
+              className={inputClass}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel-national"
+              value={national}
+              onChange={(e) => setNational(e.target.value)}
+              placeholder="07 12 34 56 78"
+              maxLength={25}
+              required
+              aria-describedby="phone-hint"
+            />
+          </div>
+          <span id="phone-hint" className="mt-1 block text-sm text-muted">
+            Ton numéro te sert à te connecter et à retrouver tes contacts. Les autres ne le voient jamais.
           </span>
-        ) : null}
-      </label>
+        </div>
+      ) : (
+        <label className="auth-rise auth-rise-2 block">
+          <span className="mb-1 block text-sm font-medium">Numéro ou nom d&apos;utilisateur</span>
+          <input
+            ref={firstField}
+            className={inputClass}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={40}
+            required
+            aria-describedby="login-hint"
+          />
+          <span id="login-hint" className="mt-1 block text-sm text-muted">
+            Avec un numéro, écris l&apos;indicatif : +225 07 12 34 56 78
+          </span>
+        </label>
+      )}
 
       <div className="auth-rise auth-rise-3">
         <label htmlFor="password" className="mb-1 block text-sm font-medium">

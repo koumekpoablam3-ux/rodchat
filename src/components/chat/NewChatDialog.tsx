@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, ContactRound, X } from "lucide-react";
 import type { UserLite } from "@/types/chat";
 import Avatar from "./Avatar";
+import ContactsDialog from "./ContactsDialog";
 import { useChat } from "./ChatProvider";
 
 type Brief = Pick<UserLite, "id" | "username" | "displayName" | "avatarUrl">;
@@ -19,6 +20,7 @@ export default function NewChatDialog() {
 function Dialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const { openDirectChat, createGroup } = useChat();
+  const [contactsOpen, setContactsOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("direct");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Brief[]>([]);
@@ -26,6 +28,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
   // Annuaire : toutes les personnes déjà inscrites, chargées à l'ouverture
   const [directory, setDirectory] = useState<Brief[] | null>(null);
   const [complete, setComplete] = useState(true);
+  const [hidden, setHidden] = useState(false);
   const [selected, setSelected] = useState<Brief[]>([]);
   const [groupName, setGroupName] = useState("");
   const [error, setError] = useState("");
@@ -44,11 +47,12 @@ function Dialog({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/users")
-      .then((response) => response.json() as Promise<{ users?: Brief[]; complete?: boolean }>)
+      .then((response) => response.json() as Promise<{ users?: Brief[]; complete?: boolean; hidden?: boolean }>)
       .then((data) => {
         if (cancelled) return;
         setDirectory(data.users ?? []);
         setComplete(data.complete !== false);
+        setHidden(data.hidden === true);
       })
       .catch(() => {
         if (!cancelled) setDirectory([]);
@@ -186,6 +190,18 @@ function Dialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        {mode === "direct" ? (
+          <div className="px-5 pb-2">
+            <button
+              type="button"
+              onClick={() => setContactsOpen(true)}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold hover:bg-bg"
+            >
+              <ContactRound size={18} aria-hidden="true" /> Retrouver mes contacts
+            </button>
+          </div>
+        ) : null}
+
         <div className="space-y-3 px-5 pb-3">
           {mode === "group" ? (
             <label className="block">
@@ -241,7 +257,9 @@ function Dialog({ onClose }: { onClose: () => void }) {
             <p className="px-5 py-6 text-center text-sm text-muted">
               {q
                 ? `Personne ne correspond à « ${query.trim()} ». Vérifie l'orthographe.`
-                : "Personne d'autre n'est inscrit pour l'instant. Invite tes proches à créer un compte sur Rodchat."}
+                : hidden
+                  ? "La liste des inscrits est masquée. Utilise « Retrouver mes contacts », ou écris le nom d'utilisateur exact de la personne."
+                  : "Personne d'autre n'est inscrit pour l'instant. Invite tes proches à créer un compte sur Rodchat."}
             </p>
           ) : (
             <ul>
@@ -299,6 +317,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
           </div>
         ) : null}
       </div>
+      {contactsOpen ? <ContactsDialog onClose={() => setContactsOpen(false)} /> : null}
     </div>
   );
 }

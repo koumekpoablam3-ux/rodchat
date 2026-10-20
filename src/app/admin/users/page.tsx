@@ -1,5 +1,6 @@
 import Link from "next/link";
 import UserActions from "@/components/admin/UserActions";
+import { formatPhone } from "@/lib/phone";
 import { isAdminUsername } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
@@ -15,6 +16,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: { q?:
     ? {
         OR: [
           { username: { contains: q.toLowerCase() } },
+          { phone: { contains: q.replace(/[\s()-]/g, "") } },
           { displayName: { contains: q, mode: "insensitive" as const } },
         ],
       }
@@ -35,6 +37,8 @@ export default async function AdminUsers({ searchParams }: { searchParams: { q?:
         lastSeenAt: true,
         suspendedAt: true,
         suspendedReason: true,
+        phone: true,
+        verifiedPhone: true,
         _count: { select: { messages: true } },
       },
     }),
@@ -77,10 +81,26 @@ export default async function AdminUsers({ searchParams }: { searchParams: { q?:
                 {user._count.messages > 1 ? "s" : ""} · dernière activité{" "}
                 {user.lastSeenAt ? user.lastSeenAt.toLocaleString("fr-FR") : "jamais"}
               </p>
+              {user.phone ? (
+                <p className="mt-1 text-sm">
+                  Numéro : <span className="font-medium">{formatPhone(user.phone)}</span>{" "}
+                  <span className={user.verifiedPhone === user.phone ? "font-semibold text-brand" : "text-muted"}>
+                    {user.verifiedPhone === user.phone ? "(vérifié)" : "(non vérifié)"}
+                  </span>
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-muted">Pas de numéro de téléphone.</p>
+              )}
               {user.suspendedReason ? <p className="mt-1 text-sm text-danger">Motif : {user.suspendedReason}</p> : null}
               {admin ? null : (
                 <div className="mt-3">
-                  <UserActions id={user.id} username={user.username} suspended={Boolean(user.suspendedAt)} />
+                  <UserActions
+                    id={user.id}
+                    username={user.username}
+                    suspended={Boolean(user.suspendedAt)}
+                    hasPhone={Boolean(user.phone)}
+                    phoneVerified={user.verifiedPhone !== null && user.verifiedPhone === user.phone}
+                  />
                 </div>
               )}
             </li>

@@ -10,6 +10,7 @@ import AppLockSection from "./AppLockSection";
 import DataSaverSection from "./DataSaverSection";
 import DevicesSection from "./DevicesSection";
 import PaletteSection from "./PaletteSection";
+import PhoneSection from "./PhoneSection";
 
 type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean };
 
@@ -194,6 +195,8 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
                   />
                 )}
               </section>
+
+              <PhoneSection />
 
               <PaletteSection />
 

@@ -46,10 +46,12 @@ type Item =
 const NO_MESSAGES: ChatMessage[] = [];
 const DELETABLE_TYPES = ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "POLL"];
 
+/** Appels et messages système : lignes d'information, pas des bulles */
 const isInfoRow = (message: ChatMessage) => message.type === "CALL" || message.type === "SYSTEM";
 
 type ChatViewProps = {
   conversationId: string;
+  /** Message à afficher en premier (arrivée depuis une recherche) */
   focusMessageId?: string;
 };
 
@@ -84,25 +86,9 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
 
   const conversation = conversations.find((c) => c.id === conversationId);
 
+  // Le bandeau « Reconnexion » n'apparaît que si la coupure dure : pas de clignotement à l'ouverture de la page
+  // ni au retour sur l'onglet (le flux temps réel se rouvre en une ou deux secondes)
   const [offlineLong, setOfflineLong] = useState(false);
-  const [selecting, setSelecting] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [loadingOlder, setLoadingOlder] = useState(false);
-  const [replyToId, setReplyToId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [menuId, setMenuId] = useState<string | null>(null);
-  const [forwardIds, setForwardIds] = useState<string[] | null>(null);
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [focusId, setFocusId] = useState<string | null>(null);
-  const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [toast, setToast] = useState("");
-  const [pinIndex, setPinIndex] = useState(0);
-  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
-  const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
-
   useEffect(() => {
     if (connected) {
       setOfflineLong(false);
@@ -112,15 +98,14 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     return () => clearTimeout(timer);
   }, [connected]);
 
+  // Plus rien de coché : on sort du mode sélection. Changer de discussion ou appuyer sur Échap aussi.
   useEffect(() => {
     if (selecting && selectedIds.size === 0) setSelecting(false);
   }, [selecting, selectedIds]);
-
   useEffect(() => {
     setSelecting(false);
     setSelectedIds(new Set());
   }, [conversationId]);
-
   useEffect(() => {
     if (!selecting) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -141,6 +126,25 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const pinnedMessages = conversation?.pinnedMessages ?? [];
   const groupCall = ongoingGroupCalls[conversationId];
 
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [replyToId, setReplyToId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [forwardIds, setForwardIds] = useState<string[] | null>(null);
+  // Sélection de plusieurs messages (copier, mettre en favori, transférer, supprimer)
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [toast, setToast] = useState("");
+  const [pinIndex, setPinIndex] = useState(0);
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
+  const [infoMessageId, setInfoMessageId] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const heightBeforeOlder = useRef<number | null>(null);
@@ -151,9 +155,11 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     messagesRef.current = messages;
   }, [messages]);
 
+  // Nombre de messages non lus au moment de l'ouverture (lu avant que la discussion soit marquée comme lue)
   const openedUnread = useRef<{ id: string; count: number } | null>(null);
   if (openedUnread.current?.id !== conversationId) openedUnread.current = { id: conversationId, count: unread };
 
+  // Premier message non lu : le séparateur « N messages non lus » s'affiche juste avant
   const [unreadAnchor, setUnreadAnchor] = useState<{ conversationId: string; id: string; count: number } | null>(null);
   const [seenMentions, setSeenMentions] = useState<Set<string>>(() => new Set());
   const anchoredFor = useRef<string | null>(null);
@@ -171,9 +177,12 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     const first = incoming[Math.max(0, incoming.length - count)];
     if (!first) return setUnreadAnchor(null);
     setUnreadAnchor({ conversationId, id: first.id, count });
+    // Beaucoup de non lus : on arrive sur le premier ; sinon on reste en bas
     if (count > 8 && !focusMessageId) setFocusId(first.id);
   }, [loaded, conversationId, me.id, focusMessageId]);
 
+  // Cette discussion devient la discussion active, et on charge ses messages
+  // (ceux d'autour du message demandé si on arrive d'une recherche)
   useEffect(() => {
     setActiveConversation(conversationId);
     let cancelled = false;
@@ -199,6 +208,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     };
   }, [conversationId, focusMessageId, setActiveConversation, loadLatest, loadAround]);
 
+  // Messages lus dès qu'ils sont à l'écran
   useEffect(() => {
     if (unread > 0 && document.visibilityState === "visible") markRead(conversationId);
   }, [unread, conversationId, markRead]);
@@ -211,6 +221,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [conversationId, markRead]);
 
+  // Défilement : en bas pour les nouveaux messages, position conservée quand on remonte l'historique
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -229,10 +240,11 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     lastIdRef.current = lastId;
   }, [messages, me.id]);
 
+  // Saut vers un message (recherche, clic sur une citation) : on le centre, puis on le met en évidence
   useEffect(() => {
     if (!focusId) return;
     const el = document.getElementById(`msg-${focusId}`);
-    if (!el) return;
+    if (!el) return; // pas encore affiché : on réessaie quand la liste change
     stickToBottom.current = false;
     el.scrollIntoView({ block: "center" });
     setHighlightId(focusId);
@@ -306,10 +318,12 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const nameOf = (userId: string) =>
     conversation.participants.find((p) => p.id === userId)?.displayName ?? "Quelqu'un";
   const online = other ? onlineIds.has(other.id) : false;
+  // « @pseudo » des membres du groupe : mis en valeur dans les messages
   const mentionable = conversation.isGroup
     ? new Set(conversation.participants.map((p) => p.username.toLowerCase()))
     : undefined;
 
+  // Messages qui me citent, à partir du premier non lu : le bouton « @ » y mène un par un
   const anchorIndex =
     unreadAnchor && unreadAnchor.conversationId === conversationId
       ? messages.findIndex((m) => m.id === unreadAnchor.id)
@@ -363,6 +377,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     await loadLatest(conversationId);
   }
 
+  /** Aller à un message, en chargeant l'extrait de discussion qui l'entoure s'il n'est pas affiché */
   async function goToMessage(messageId: string) {
     if (!messages.some((m) => m.id === messageId)) {
       const found = await loadAround(conversationId, messageId);
@@ -374,6 +389,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     setFocusId(messageId);
   }
 
+  // --- Menu d'un message ---
   const menuMessage = menuId ? (messages.find((m) => m.id === menuId) ?? null) : null;
   const replyTo = replyToId ? (messages.find((m) => m.id === replyToId) ?? null) : null;
   const editing = editingId ? (messages.find((m) => m.id === editingId) ?? null) : null;
@@ -397,9 +413,11 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     try {
       await navigator.share({ text: message.content ?? "" });
     } catch {
-      /* partage annulé */
+      /* partage annulé : rien à signaler */
     }
   }
+
+  // --- Sélection de plusieurs messages ---
 
   function startSelecting(firstId: string) {
     closeMenu();
@@ -481,6 +499,12 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     setToast(problem ?? (selectedMessages.length > 1 ? "Messages supprimés" : "Message supprimé"));
   }
 
+  async function star(message: ChatMessage) {
+    closeMenu();
+    const problem = await toggleStar(message.id);
+    if (problem) setToast(problem);
+  }
+
   async function togglePin(message: ChatMessage) {
     closeMenu();
     const pinned = pinnedMessages.some((p) => p.id === message.id);
@@ -506,8 +530,6 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const headerButton =
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink hover:bg-bg disabled:opacity-40 disabled:hover:bg-transparent";
   const callsDisabled = inCall || !connected || (conversation.isGroup && !!groupCall);
-
-  const myReactionOnMenu = menuMessage?.reactions?.find((r) => r.userId === me.id)?.emoji ?? null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -641,6 +663,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       ) : null}
 
+      {/* Un appel de groupe est en cours dans cette discussion */}
       {conversation.isGroup && groupCall && activeGroupConversationId !== conversationId ? (
         <div className="flex items-center gap-3 border-b border-line bg-panel px-4 py-2">
           {groupCall.kind === "VIDEO" ? <Video size={18} aria-hidden="true" className="text-brand" /> : <Phone size={18} aria-hidden="true" className="text-brand" />}
@@ -760,6 +783,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         </div>
       </div>
 
+      {/* On regarde un extrait ancien : retour rapide aux derniers messages */}
       {hasNewer ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center">
           <button
@@ -777,71 +801,99 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         <div className="pointer-events-none absolute bottom-24 right-4 z-20">
           <button
             type="button"
-            aria-label={`Aller à la prochaine mention (@${mentionTargets.length})`}
+            aria-label={`Aller à la prochaine mention, ${mentionTargets.length} en tout`}
             onClick={() => {
               const target = mentionTargets[0];
-              if (target) {
-                setSeenMentions((prev) => new Set([...prev, target.id]));
-                void goToMessage(target.id);
-              }
+              setSeenMentions((previous) => new Set(previous).add(target.id));
+              void goToMessage(target.id);
             }}
-            className="pointer-events-auto relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand text-brand-ink shadow-lg"
+            className="pointer-events-auto relative inline-flex h-12 w-12 items-center justify-center rounded-full bg-panel text-brand shadow-lg ring-1 ring-line"
           >
-            <AtSign size={20} />
-            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-ink shadow">
+            <AtSign size={22} aria-hidden="true" />
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 min-w-5 rounded-full bg-accent px-1 text-center text-xs font-bold leading-5 text-accent-ink"
+            >
               {mentionTargets.length}
             </span>
           </button>
         </div>
       ) : null}
 
-      <Composer
-        conversationId={conversationId}
-        replyTo={replyTo}
-        editing={editing}
-        onCancelReply={() => setReplyToId(null)}
-        onCancelEdit={() => setEditingId(null)}
-        onSent={() => {}}
-      />
+      {toast ? (
+        <div
+          role="status"
+          className="rise pointer-events-none absolute inset-x-4 bottom-24 z-30 mx-auto max-w-sm rounded-2xl bg-ink px-4 py-3 text-center text-sm font-medium text-bg shadow-xl"
+        >
+          {toast}
+        </div>
+      ) : null}
+
+      {conversation?.isGroup && conversation.adminsOnly && conversation.myRole !== "ADMIN" ? (
+        <div className="border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-sm text-muted">
+          Seuls les admins peuvent envoyer des messages dans ce groupe.
+        </div>
+      ) : conversation?.blockedByMe && conversation.otherUserId ? (
+        <div className="flex items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <p className="text-sm text-muted">Tu as bloqué {conversation.name}.</p>
+          <button
+            type="button"
+            onClick={() => void setBlocked(conversation.otherUserId as string, false)}
+            className="h-10 shrink-0 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-ink"
+          >
+            Débloquer
+          </button>
+        </div>
+      ) : (
+        <Composer
+          conversationId={conversationId}
+          onSent={() => {
+            stickToBottom.current = true;
+          }}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyToId(null)}
+          editing={editing}
+          onCancelEdit={() => setEditingId(null)}
+        />
+      )}
+
+      {infoMessageId ? <MessageInfoDialog messageId={infoMessageId} onClose={() => setInfoMessageId(null)} /> : null}
+
+      {reportMessageId ? (
+        <ReportDialog messageId={reportMessageId} name="ce message" onClose={() => setReportMessageId(null)} />
+      ) : null}
 
       {menuMessage ? (
         <MessageMenu
           message={menuMessage}
           mine={menuIsMine}
+          canEdit={
+            menuIsMine && menuMessage.type === "TEXT" && menuMessage.deletedAt === null && menuAge <= EDIT_WINDOW_MS
+          }
+          canDeleteForAll={
+            menuIsMine &&
+            menuMessage.deletedAt === null &&
+            DELETABLE_TYPES.includes(menuMessage.type) &&
+            menuAge <= DELETE_FOR_ALL_WINDOW_MS
+          }
+          myReaction={menuMessage.reactions.find((r) => r.userId === me.id)?.emoji ?? null}
           starred={starredIds.has(menuMessage.id)}
           pinned={pinnedMessages.some((p) => p.id === menuMessage.id)}
-          canEdit={menuIsMine && menuAge <= EDIT_WINDOW_MS && menuMessage.deletedAt === null && !menuMessage.localStatus}
-          canDeleteForAll={menuIsMine && menuAge <= DELETE_FOR_ALL_WINDOW_MS && menuMessage.deletedAt === null && !menuMessage.localStatus}
-          canShare={!!menuMessage.content}
-          myReaction={myReactionOnMenu}
+          canShare={typeof navigator !== "undefined" && typeof navigator.share === "function"}
           onClose={closeMenu}
+          onReact={(emoji) => {
+            closeMenu();
+            void react(menuMessage.id, emoji);
+          }}
           onReply={() => {
             closeMenu();
             setEditingId(null);
             setReplyToId(menuMessage.id);
           }}
-          onEdit={() => {
-            closeMenu();
-            setReplyToId(null);
-            setEditingId(menuMessage.id);
-          }}
           onCopy={() => void copyText(menuMessage)}
           onShare={() => void shareText(menuMessage)}
-          onSelect={() => startSelecting(menuMessage.id)}
-          onForward={() => {
-            closeMenu();
-            setForwardIds([menuMessage.id]);
-          }}
-          onToggleStar={() => {
-            closeMenu();
-            void toggleStar(menuMessage.id);
-          }}
+          onToggleStar={() => void star(menuMessage)}
           onTogglePin={() => void togglePin(menuMessage)}
-          onDelete={(scope) => void remove(menuMessage, scope)}
-          onReact={(emoji) => {
-            closeMenu();
-            void react(menuMessage.id, emoji);
-          }}
           onReport={() => {
             closeMenu();
             setReportMessageId(menuMessage.id);
@@ -850,15 +902,35 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
             closeMenu();
             setInfoMessageId(menuMessage.id);
           }}
+          onSelect={() => startSelecting(menuMessage.id)}
+          onForward={() => {
+            closeMenu();
+            setForwardIds([menuMessage.id]);
+          }}
+          onEdit={() => {
+            closeMenu();
+            setReplyToId(null);
+            setEditingId(menuMessage.id);
+          }}
+          onDelete={(scope) => void remove(menuMessage, scope)}
         />
       ) : null}
 
       {forwardIds ? (
         <ForwardDialog
           messageIds={forwardIds}
-          onClose={() => {
+          onClose={() => setForwardIds(null)}
+          onDone={(count) => {
+            const many = forwardIds.length > 1;
             setForwardIds(null);
-            if (selecting) stopSelecting();
+            stopSelecting();
+            setToast(
+              many
+                ? `${forwardIds.length} messages transférés`
+                : count > 1
+                  ? `Message transféré à ${count} discussions`
+                  : "Message transféré",
+            );
           }}
         />
       ) : null}
@@ -868,18 +940,18 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
           count={selectedIds.size}
           canDeleteForAll={canDeleteSelectedForAll}
           busy={bulkBusy}
+          onForMe={() => void deleteSelected("me")}
+          onForAll={() => void deleteSelected("all")}
           onClose={() => setBulkDeleteOpen(false)}
-          onDeleteForMe={() => void deleteSelected("me")}
-          onDeleteForAll={() => void deleteSelected("all")}
         />
       ) : null}
 
       {infoOpen ? (
         <ConversationInfo
-          conversation={conversation}
-          meId={me.id}
+          conversationId={conversationId}
           onClose={() => setInfoOpen(false)}
-          onBlockChange={(blocked) => setBlocked(conversation.otherUserId ?? "", blocked)}
+          onSearch={() => setSearchOpen(true)}
+          onGoToMessage={(messageId) => void goToMessage(messageId)}
         />
       ) : null}
 
@@ -887,32 +959,8 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
         <ConversationSearch
           conversationId={conversationId}
           onClose={() => setSearchOpen(false)}
-          onSelectMessage={(msgId) => {
-            setSearchOpen(false);
-            void goToMessage(msgId);
-          }}
+          onSelect={(messageId) => void goToMessage(messageId)}
         />
-      ) : null}
-
-      {reportMessageId ? (
-        <ReportDialog
-          messageId={reportMessageId}
-          onClose={() => setReportMessageId(null)}
-        />
-      ) : null}
-
-      {infoMessageId ? (
-        <MessageInfoDialog
-          messageId={infoMessageId}
-          conversationId={conversationId}
-          onClose={() => setInfoMessageId(null)}
-        />
-      ) : null}
-
-      {toast ? (
-        <div className="pointer-events-none absolute bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-slate-900/90 px-4 py-2 text-sm text-white shadow-lg backdrop-blur dark:bg-slate-100/90 dark:text-slate-900">
-          {toast}
-        </div>
       ) : null}
     </div>
   );

@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
   registrationMode: z.enum(["open", "invite", "closed"]),
   inviteCode: z.string().trim().max(100).optional().default(""),
+  directory: z.enum(["on", "off"]).optional().default("on"),
   announcement: z.string().trim().max(300, "L'annonce est trop longue (300 caractères maximum).").optional().default(""),
 });
 
@@ -19,7 +20,7 @@ export async function PUT(req: Request) {
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-  const { registrationMode, inviteCode, announcement } = parsed.data;
+  const { registrationMode, inviteCode, announcement, directory } = parsed.data;
 
   if (registrationMode === "invite" && !inviteCode) {
     return badRequest("Choisis un code d'invitation, ou passe l'inscription en « ouverte » ou « fermée ».");
@@ -31,7 +32,8 @@ export async function PUT(req: Request) {
   await setSetting("registration_mode", registrationMode);
   await setSetting("invite_code", registrationMode === "invite" ? inviteCode : null);
   await setSetting("announcement", announcement);
+  await setSetting("directory", directory === "off" ? "off" : null);
 
-  await logAdmin(auth.admin, "Réglages modifiés", undefined, `Inscription : ${registrationMode}${announcement ? " · annonce publiée" : " · pas d'annonce"}`);
+  await logAdmin(auth.admin, "Réglages modifiés", undefined, `Inscription : ${registrationMode}${announcement ? " · annonce publiée" : " · pas d'annonce"} · annuaire ${directory === "off" ? "masqué" : "visible"}`);
   return NextResponse.json({ ok: true });
 }

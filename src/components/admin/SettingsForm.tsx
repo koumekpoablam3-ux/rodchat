@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Props = { mode: "open" | "invite" | "closed"; code: string; announcement: string };
+type Props = { mode: "open" | "invite" | "closed"; code: string; announcement: string; directory: "on" | "off" };
 
 const MODES = [
   { id: "open", label: "Ouverte", hint: "Tout le monde peut créer un compte." },
@@ -17,6 +17,7 @@ export default function SettingsForm(initial: Props) {
   const [mode, setMode] = useState(initial.mode);
   const [code, setCode] = useState(initial.code);
   const [announcement, setAnnouncement] = useState(initial.announcement);
+  const [directory, setDirectory] = useState(initial.directory);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -29,7 +30,7 @@ export default function SettingsForm(initial: Props) {
     const response = await fetch("/api/admin/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ registrationMode: mode, inviteCode: code, announcement }),
+      body: JSON.stringify({ registrationMode: mode, inviteCode: code, announcement, directory }),
     }).catch(() => null);
     setBusy(false);
     if (!response?.ok) {
@@ -78,6 +79,30 @@ export default function SettingsForm(initial: Props) {
             ) : null}
           </div>
         ) : null}
+      </fieldset>
+
+      <fieldset className="rounded-2xl bg-panel p-4">
+        <legend className="px-1 font-display text-lg font-semibold">Liste des inscrits</legend>
+        <p className="mb-2 text-sm text-muted">
+          Dans « Nouvelle discussion », tout le monde peut voir la liste de tous les inscrits. Masquée, elle disparaît : on retrouve
+          ses contacts par leur numéro (numéros vérifiés), ou en écrivant le nom d&apos;utilisateur exact.
+        </p>
+        <div className="space-y-1">
+          {(
+            [
+              ["on", "Visible", "Tous les inscrits apparaissent."],
+              ["off", "Masquée", "Plus protecteur pour la vie privée."],
+            ] as const
+          ).map(([id, label, hint]) => (
+            <label key={id} className="flex cursor-pointer items-start gap-3 rounded-xl px-2 py-2 hover:bg-bg">
+              <input type="radio" name="directory" checked={directory === id} onChange={() => setDirectory(id)} className="mt-1 h-4 w-4" />
+              <span>
+                <span className="block font-medium">{label}</span>
+                <span className="block text-sm text-muted">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       <section className="rounded-2xl bg-panel p-4">

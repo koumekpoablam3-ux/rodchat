@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { unauthorized } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
+import { getSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -18,18 +19,25 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams.get("q")?.trim() ?? "";
   const searching = q.length >= 2;
 
+  // Annuaire masqué par l'administrateur : plus de liste des inscrits, seulement un nom d'utilisateur exact
+  // (ou la recherche de contacts par numéro)
+  const hidden = (await getSetting("directory")) === "off";
+  if (hidden && !searching) return NextResponse.json({ users: [], complete: false, hidden: true });
+
   const users = await prisma.user.findMany({
     where: {
       id: { not: userId },
       blocksGiven: { none: { blockedId: userId } },
       blocksReceived: { none: { blockerId: userId } },
       ...(searching
-        ? {
-            OR: [
-              { username: { contains: q.toLowerCase() } },
-              { displayName: { contains: q, mode: "insensitive" } },
-            ],
-          }
+        ? hidden
+          ? { username: q.toLowerCase() }
+          : {
+              OR: [
+                { username: { contains: q.toLowerCase() } },
+                { displayName: { contains: q, mode: "insensitive" } },
+              ],
+            }
         : {}),
     },
     select: { id: true, username: true, displayName: true, avatarUrl: true },

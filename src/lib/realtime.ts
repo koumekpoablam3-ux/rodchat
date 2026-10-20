@@ -93,6 +93,7 @@ export async function purgeOldEvents() {
       ],
     },
   });
+  await prisma.phoneVerification.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 60 * 60_000) } } });
   // Sessions : connexions inactives depuis 60 jours (le jeton expire de toute façon au bout de 30 jours)
   await prisma.session.deleteMany({ where: { lastSeenAt: { lt: new Date(Date.now() - 60 * 24 * 60 * 60_000) } } });
   await prisma.status.deleteMany({ where: { expiresAt: { lt: new Date() } } });

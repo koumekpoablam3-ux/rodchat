@@ -30,6 +30,15 @@ export default function PrivacyPage() {
             n&apos;est pas enregistré : il passe directement d&apos;un appareil à l&apos;autre.
           </li>
           <li>
+            <strong>Ton numéro de téléphone :</strong> saisi à l&apos;inscription, il sert à te connecter et à te faire retrouver par
+            tes contacts (si tu l&apos;acceptes : réglage <em>Me retrouver par mon numéro</em>). Il n&apos;est jamais montré aux
+            autres personnes. Une empreinte irréversible (SHA-256) de ton numéro vérifié sert à la recherche de contacts.
+          </li>
+          <li>
+            <strong>Tes contacts, quand tu veux retrouver tes amis :</strong> les numéros de ton carnet d&apos;adresses sont
+            transformés en empreintes dans ton navigateur avant d&apos;être comparés ; le service ne les enregistre pas.
+          </li>
+          <li>
             <strong>Ta présence :</strong> « en ligne » et, si tu l&apos;autorises, « dernière connexion ».
           </li>
           <li>

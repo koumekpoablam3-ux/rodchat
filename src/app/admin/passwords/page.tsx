@@ -1,4 +1,5 @@
 import PasswordRequestActions from "@/components/admin/PasswordRequestActions";
+import { formatPhone } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export default async function AdminPasswords() {
         id: true,
         proof: true,
         createdAt: true,
-        user: { select: { displayName: true, username: true, createdAt: true, lastSeenAt: true } },
+        user: { select: { displayName: true, username: true, createdAt: true, lastSeenAt: true, phone: true, verifiedPhone: true } },
       },
     }),
     prisma.passwordResetRequest.findMany({
@@ -58,6 +59,12 @@ export default async function AdminPasswords() {
                 Demande du {request.createdAt.toLocaleString("fr-FR")} · compte créé le {request.user.createdAt.toLocaleDateString("fr-FR")} ·
                 dernière activité {request.user.lastSeenAt ? request.user.lastSeenAt.toLocaleString("fr-FR") : "jamais"}
               </p>
+              {request.user.phone ? (
+                <p className="mt-2 text-sm">
+                  Numéro du compte : <span className="font-medium">{formatPhone(request.user.phone)}</span>{" "}
+                  <span className="text-muted">({request.user.verifiedPhone === request.user.phone ? "vérifié" : "non vérifié"}) : appelle ce numéro pour t'assurer que c'est bien la personne.</span>
+                </p>
+              ) : null}
               <p className="mt-2 text-sm font-medium">Ce que la personne a écrit pour s&apos;identifier :</p>
               <blockquote className="mt-1 whitespace-pre-wrap break-words rounded-xl border-l-4 border-brand bg-bg px-3 py-2 text-sm">
                 {request.proof}

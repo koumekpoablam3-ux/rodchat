@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { compare, hashSync } from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "@/lib/api";
+import { looksLikePhone, parsePhone } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
@@ -12,7 +14,8 @@ import { serializeUser, userSelect } from "@/lib/users";
 const DUMMY_HASH = hashSync("rodchat-timing-equalizer", 10);
 
 const schema = z.object({
-  username: z.string().trim().toLowerCase().min(1, "Indique ton nom d'utilisateur."),
+  // Nom d'utilisateur, ou numéro de téléphone avec l'indicatif (« +225… »)
+  username: z.string().trim().toLowerCase().min(1, "Indique ton numéro ou ton nom d'utilisateur."),
   password: z.string().min(1, "Indique ton mot de passe."),
 });
 
@@ -33,17 +36,31 @@ export async function POST(req: Request) {
     );
   }
 
-  const user = await prisma.user.findUnique({
-    where: { username },
-    select: { ...userSelect, passwordHash: true, suspendedAt: true },
-  });
+  const loginSelect = { ...userSelect, passwordHash: true, suspendedAt: true } as const;
+  let user: Prisma.UserGetPayload<{ select: typeof loginSelect }> | null = null;
+
+  if (looksLikePhone(username)) {
+    // Connexion par numéro : le numéro vérifié d'un compte l'emporte ; sinon un numéro annoncé par un seul compte.
+    // Si plusieurs comptes annoncent le même numéro sans qu'aucun soit vérifié, on ne choisit pas : mot de passe refusé.
+    const phone = parsePhone(username, "");
+    if (phone) {
+      const verified = await prisma.user.findUnique({ where: { verifiedPhone: phone }, select: loginSelect });
+      if (verified) user = verified;
+      else {
+        const claimed = await prisma.user.findMany({ where: { phone }, select: loginSelect, take: 2 });
+        if (claimed.length === 1) user = claimed[0];
+      }
+    }
+  } else {
+    user = await prisma.user.findUnique({ where: { username }, select: loginSelect });
+  }
 
   // Même message ET même durée dans les deux cas : on ne révèle pas si le compte existe
   const hash = user?.passwordHash ?? DUMMY_HASH;
   const valid = await compare(password, hash);
   if (!user || !valid) {
     return NextResponse.json(
-      { error: "Nom d'utilisateur ou mot de passe incorrect." },
+      { error: "Numéro, nom d'utilisateur ou mot de passe incorrect." },
       { status: 401 },
     );
   }

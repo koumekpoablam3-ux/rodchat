@@ -113,6 +113,22 @@ Test sur téléphone en `http://` (réseau local) : ajoute `COOKIE_SECURE="false
 
 **Partage d'écran.** Pendant un **appel vidéo à deux**, un bouton écran permet de partager son écran à la place de la caméra ; l'autre personne le voit en entier (non recadré) et un bandeau « Tu partages ton écran » s'affiche. Le partage s'arrête avec le même bouton ou avec le bouton du navigateur. Disponible sur **ordinateur** seulement : les navigateurs de téléphone ne savent pas partager l'écran, et le bouton n'apparaît pas. (Pas encore dans les appels de groupe ni les appels audio.)
 
+**Inscription par numéro de téléphone et recherche de contacts.**
+
+*Inscription et connexion.* À l'inscription, on donne son **numéro** (pays + numéro, le pays est proposé d'après le fuseau horaire), son nom et un mot de passe : le nom d'utilisateur est **généré automatiquement** (par exemple `koffi_4821`) et sert aux mentions. On se connecte avec **son numéro (avec l'indicatif, `+225 07 12 34 56 78`) ou son nom d'utilisateur**. Les comptes existants gardent leur nom d'utilisateur et peuvent ajouter leur numéro dans *Paramètres → Mon numéro*. Le numéro n'est **jamais montré aux autres personnes**.
+
+*Numéro vérifié ou non.* Un numéro saisi à l'inscription est d'abord **non vérifié**. Il devient **vérifié** de deux façons :
+- **par SMS** : si un service d'envoi est configuré (variables `SMS_PROVIDER="twilio"`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` et `TWILIO_FROM` ou `TWILIO_MESSAGING_SERVICE_SID`), *Paramètres → Mon numéro → Recevoir un code par SMS* envoie un code à 6 chiffres (valable 10 minutes, 5 essais ; 3 envois par heure et par compte, 5 par jour et par numéro). Chaque SMS est facturé par le service d'envoi ;
+- **par l'administrateur** : dans *Admin → Utilisateurs*, le numéro de chaque compte est affiché avec *Marquer le numéro comme vérifié* (après l'avoir appelé ou lui avoir écrit, par exemple). C'est la solution gratuite pour une petite communauté.
+
+Pourquoi cette vérification : sans elle, quelqu'un pourrait créer un compte avec le numéro d'un autre et apparaître dans les contacts de cette personne sous son nom. C'est pourquoi **seuls les numéros vérifiés servent à retrouver ses contacts**, et il faut avoir soi-même un numéro vérifié pour lancer une recherche. Un numéro vérifié est unique (un seul compte), tandis que plusieurs comptes peuvent annoncer le même numéro non vérifié : on ne révèle donc jamais qu'un numéro est déjà utilisé.
+
+*Retrouver ses contacts.* *Nouvelle discussion → Retrouver mes contacts* : on **choisit dans les contacts du téléphone** (sélecteur natif, disponible sur Chrome pour Android) ou on **importe un fichier de contacts `.vcf`** (export des contacts de n'importe quel téléphone ou de Google Contacts). Rodchat montre alors **qui est déjà sur l'application** (avec le nom tel qu'il est dans ton carnet) avec un bouton *Écrire*, et propose d'**inviter** les autres par SMS avec le lien d'inscription. Les numéros sont convertis en empreintes SHA-256 **dans le navigateur** avant d'être comparés : le service ne reçoit ni ne conserve ton carnet d'adresses. Chacun peut refuser d'être retrouvé (*Me retrouver par mon numéro*). Limites : 20 recherches par jour et par personne, 500 numéros à la fois ; les personnes bloquées ou qui t'ont bloqué n'apparaissent pas.
+
+*Ce qui n'est pas « comme WhatsApp » :* une application web **ne peut pas lire le carnet d'adresses toute seule** : il faut le choisir ou l'importer à chaque fois (une application installée sur le téléphone le pourrait, une page web non). Il n'y a pas non plus de vérification par appel automatique.
+
+*Liste des inscrits.* Dans *Admin → Réglages*, la **liste de tous les inscrits** dans « Nouvelle discussion » peut être **masquée** : on retrouve alors ses contacts par leur numéro, ou en écrivant le nom d'utilisateur exact.
+
 **Barre de navigation.** À gauche sur ordinateur (en onglets en bas sur téléphone) : *Discussions* (pastille = nombre de discussions non lues, hors archives et sourdines), *Appels*, *Statuts* (point quand il y en a de nouveaux), puis en bas *Messages favoris*, *Paramètres* et ton *profil*. L'onglet **Appels** affiche l'historique (entrants, sortants, manqués, refusés, avec la durée) et un bouton pour **rappeler** en un geste, en audio ou en vidéo ; pour un appel de groupe encore en cours, il propose de le rejoindre.
 
 **Statuts.** Le bouton en forme de cercle en pointillés (en haut de la liste) ouvre les statuts : on publie un **texte sur fond coloré** ou une **photo avec légende**, visibles **24 h** par les personnes avec qui on a une discussion à deux (hors personnes bloquées). Les statuts non vus sont signalés par une pastille ; le lecteur plein écran avance tout seul (toucher à droite/gauche pour naviguer, maintenir pour mettre en pause). L'auteur voit **qui a vu** son statut et peut le supprimer. Les statuts expirés sont supprimés automatiquement avec leurs photos (les photos comptent dans la limite de 4 Mo sur Vercel).
@@ -204,6 +220,7 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
    | `AUTH_SECRET` | `openssl rand -base64 32` |
    | `CRON_SECRET` | `openssl rand -hex 32` |
    | `INVITE_CODE` | facultatif : code d'invitation de départ ; l'espace admin (Réglages) peut ensuite le remplacer |
+   | `SMS_PROVIDER`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | facultatif : envoi des codes de vérification par SMS (Twilio) |
    | `ADMIN_USERNAMES` | **à définir** : noms d'utilisateur des administrateurs (séparés par des virgules), pour accéder à `/admin` |
    | `NEXT_PUBLIC_CONTACT_EMAIL` | facultatif : adresse de contact affichée dans les pages légales |
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | facultatif, pour les notifications (`npx web-push generate-vapid-keys`) |

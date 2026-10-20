@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Props = { id: string; username: string; suspended: boolean };
+type Props = { id: string; username: string; suspended: boolean; hasPhone?: boolean; phoneVerified?: boolean };
 
 const btn = "h-10 rounded-xl border border-line px-3 text-sm font-semibold hover:bg-bg disabled:opacity-50";
 
 /** Actions d'administration sur un compte */
-export default function UserActions({ id, username, suspended }: Props) {
+export default function UserActions({ id, username, suspended, hasPhone = false, phoneVerified = false }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"suspend" | "delete" | null>(null);
@@ -61,6 +61,17 @@ export default function UserActions({ id, username, suspended }: Props) {
             Suspendre
           </button>
         )}
+        {hasPhone ? (
+          phoneVerified ? (
+            <button type="button" disabled={busy} onClick={() => void act("unverify-phone")} className={btn}>
+              Retirer la vérification du numéro
+            </button>
+          ) : (
+            <button type="button" disabled={busy} onClick={() => void act("verify-phone")} className={btn}>
+              Marquer le numéro comme vérifié
+            </button>
+          )
+        ) : null}
         <button type="button" disabled={busy} onClick={() => void act("logout")} className={btn}>
           Déconnecter ses appareils
         </button>
