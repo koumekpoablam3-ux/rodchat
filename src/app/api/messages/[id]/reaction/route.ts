@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { badRequest, forbidden, notFound, unauthorized } from "@/lib/api";
 import { REACTION_EMOJIS } from "@/lib/limits";
+import { displayNameOf } from "@/lib/access";
+import { background } from "@/lib/background";
 import { broadcastMessageUpdate, loadMessage } from "@/lib/messages";
+import { notifyMembers, previewOf } from "@/lib/push";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
@@ -25,7 +28,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   const message = await prisma.message.findUnique({
     where: { id: params.id },
-    select: { id: true, conversationId: true, type: true, deletedAt: true, createdAt: true },
+    select: { id: true, conversationId: true, type: true, deletedAt: true, createdAt: true, senderId: true, content: true },
   });
   if (!message) return notFound("Ce message n'existe plus.");
 
@@ -50,6 +53,22 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       create: { messageId: message.id, userId, emoji },
       update: { emoji },
     });
+    // L'auteur du message est prévenu (pas pour sa propre réaction, ni quand on retire la sienne)
+    if (message.senderId !== userId) {
+      const author = message.senderId;
+      background(
+        (async () => {
+          const actor = await displayNameOf(userId);
+          await notifyMembers(message.conversationId, [author], {
+            title: actor,
+            body: `a réagi ${emoji} à ton message : ${previewOf(message.type, message.content)}`,
+            url: `/chat/${message.conversationId}`,
+            tag: `react:${message.id}:${userId}`,
+            renotify: false,
+          });
+        })(),
+      );
+    }
   }
 
   const updated = await loadMessage(message.id);

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { isAdminUsername } from "@/lib/admin";
 import { badRequest, clientIp } from "@/lib/api";
 import { phoneCandidates } from "@/lib/phone";
+import { notifyAdmins } from "@/lib/push";
 import { prisma } from "@/lib/prisma";
 import { rateLimitShared } from "@/lib/rate-limit";
 
@@ -65,6 +66,14 @@ export async function POST(req: Request) {
     const pending = await prisma.passwordResetRequest.count({ where: { userId: user.id, status: "PENDING" } });
     if (pending < 3) {
       await prisma.passwordResetRequest.create({ data: { userId: user.id, newPasswordHash, proof } });
+      // L'administrateur est prévenu tout de suite, sans avoir à ouvrir la page
+      await notifyAdmins({
+        title: "Mot de passe oublié",
+        body: `@${user.username} demande un nouveau mot de passe. Ouvre la demande pour la vérifier.`,
+        url: "/admin/passwords",
+        tag: `admin-password:${user.id}`,
+        requireInteraction: true,
+      });
     }
   }
 

@@ -179,15 +179,13 @@ async function startCall(userId: string, connId: string, data: Data): Promise<Ac
     from: caller,
   });
 
-  // Aucun appareil connecté : notification push pour qu'il ouvre l'app
-  if (!(await realtime.onlineUsers([calleeId])).has(calleeId)) {
-    pushIncomingCall([calleeId], {
-      title: caller.displayName,
-      body: kind === "VIDEO" ? "Appel vidéo entrant" : "Appel audio entrant",
-      conversationId,
-      callId: call.id,
-    });
-  }
+  // Notification push sur tous les appareils (inutile et donc muette si l'app est au premier plan : elle sonne déjà)
+  pushIncomingCall([calleeId], {
+    title: caller.displayName,
+    body: kind === "VIDEO" ? "Appel vidéo entrant" : "Appel audio entrant",
+    conversationId,
+    callId: call.id,
+  });
   return { ok: true, callId: call.id };
 }
 
@@ -305,10 +303,9 @@ async function startGroupCall(userId: string, connId: string, data: Data): Promi
     })),
   );
 
-  // Les personnes sans appareil connecté reçoivent une notification
-  const online = await realtime.onlineUsers(others);
+  // Tout le monde reçoit une notification (muette si l'app est déjà au premier plan)
   pushIncomingCall(
-    others.filter((id) => !online.has(id)),
+    others,
     {
       title: conversation.name ?? "Groupe",
       body: `${caller.displayName} lance un appel ${kind === "VIDEO" ? "vidéo" : "audio"} de groupe`,

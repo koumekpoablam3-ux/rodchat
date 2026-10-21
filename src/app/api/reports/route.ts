@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { badRequest, notFound, unauthorized } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { notifyAdmins } from "@/lib/push";
 import { rateLimitShared } from "@/lib/rate-limit";
 import { REPORT_REASON_IDS } from "@/lib/report-reasons";
 import { getSessionUserId } from "@/lib/session";
@@ -70,6 +71,12 @@ export async function POST(req: Request) {
       details: details || null,
       messageExcerpt: excerpt ?? null,
     },
+  });
+  await notifyAdmins({
+    title: "Nouveau signalement",
+    body: `${target.displayName} (@${target.username}) a été signalé.`,
+    url: "/admin/reports",
+    tag: `admin-report:${target.id}`,
   });
   return NextResponse.json({ ok: true }, { status: 201 });
 }

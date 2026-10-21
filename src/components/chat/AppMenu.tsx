@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, BellOff, Download, EllipsisVertical, LogOut, Settings, ShieldCheck, Star, UserRound } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
-import { usePush } from "@/hooks/usePush";
+import { unbindPushSubscription, usePush } from "@/hooks/usePush";
 import { getSocket } from "@/lib/socket";
 import Avatar from "./Avatar";
 import { useChat } from "./ChatProvider";
@@ -64,6 +64,7 @@ export default function AppMenu() {
     removeLock(); // le code de verrouillage n'a plus de sens une fois déconnecté
     setOpen(false);
     getSocket().disconnect();
+    await unbindPushSubscription(); // avant la déconnexion : il faut encore être identifié pour retirer l'abonnement
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     router.replace("/login");
     router.refresh();

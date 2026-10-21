@@ -118,7 +118,10 @@ function pushBody(message: MessageWithRelations) {
   }
 }
 
-async function notifyOffline(userIds: string[], message: MessageWithRelations, mention = false) {
+type PushKind = "regular" | "mention" | "reply";
+
+/** Notification push d'un nouveau message (le service worker n'affiche rien si l'application est déjà au premier plan) */
+async function notifyRecipients(userIds: string[], message: MessageWithRelations, kind: PushKind = "regular") {
   const conversation = await prisma.conversation.findUnique({
     where: { id: message.conversationId },
     select: { isGroup: true, name: true },
@@ -126,19 +129,22 @@ async function notifyOffline(userIds: string[], message: MessageWithRelations, m
   const body = pushBody(message);
   await sendPushToUsers(userIds, {
     title: conversation?.isGroup ? (conversation.name ?? "Groupe") : message.sender.displayName,
-    body: mention
-      ? `${message.sender.displayName} t'a mentionné : ${body}`
-      : conversation?.isGroup
-        ? `${message.sender.displayName} : ${body}`
-        : body,
+    body:
+      kind === "mention"
+        ? `${message.sender.displayName} t'a mentionné : ${body}`
+        : kind === "reply"
+          ? `${message.sender.displayName} t'a répondu : ${body}`
+          : conversation?.isGroup
+            ? `${message.sender.displayName} : ${body}`
+            : body,
     url: `/chat/${message.conversationId}`,
-    tag: mention ? `${message.conversationId}:mention` : message.conversationId,
+    tag: kind === "mention" ? `${message.conversationId}:mention` : message.conversationId,
   });
 }
 
 /**
  * Enregistre un message (texte, fichier, vocal, appel ou message système), le diffuse en temps réel
- * aux participants et notifie ceux qui n'ont aucun appareil connecté (sauf en sourdine).
+ * aux participants et envoie une notification push à tous les destinataires (sauf en sourdine).
  * Utilisé par /api/realtime/action (messages texte) et par les routes API.
  */
 export async function postMessage(input: PostMessageInput): Promise<MessageWithRelations> {
@@ -186,7 +192,7 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
     }),
     // On ne cite qu'un message de la même discussion
     replyToId
-      ? prisma.message.findFirst({ where: { id: replyToId, conversationId }, select: { id: true } })
+      ? prisma.message.findFirst({ where: { id: replyToId, conversationId }, select: { id: true, senderId: true } })
       : null,
   ]);
 
@@ -269,14 +275,20 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
   scheduleLinkPreview(message);
 
   if (!silent) {
-    const offlineOthers = others.filter((o) => !isOnline(o.userId));
+    // Tout le monde est prévenu, connecté ou non : un onglet en arrière-plan ou un écran verrouillé ne voit pas
+    // le message arriver. Le service worker n'affiche rien si l'application est déjà au premier plan.
+    const isMuted = (o: { mutedUntil: Date | null }) => Boolean(o.mutedUntil && o.mutedUntil > now);
     // Une mention prévient même si la discussion est en sourdine
-    const mentioned = offlineOthers.filter((o) => mentionedIds.includes(o.userId)).map((o) => o.userId);
-    const regular = offlineOthers
-      .filter((o) => !mentionedIds.includes(o.userId) && !(o.mutedUntil && o.mutedUntil > now))
+    const mentioned = others.filter((o) => mentionedIds.includes(o.userId)).map((o) => o.userId);
+    const replied = others
+      .filter((o) => o.userId === replyTarget?.senderId && !mentionedIds.includes(o.userId) && !isMuted(o))
       .map((o) => o.userId);
-    if (regular.length > 0) background(notifyOffline(regular, message));
-    if (mentioned.length > 0) background(notifyOffline(mentioned, message, true));
+    const regular = others
+      .filter((o) => !mentionedIds.includes(o.userId) && o.userId !== replyTarget?.senderId && !isMuted(o))
+      .map((o) => o.userId);
+    if (regular.length > 0) background(notifyRecipients(regular, message));
+    if (replied.length > 0) background(notifyRecipients(replied, message, "reply"));
+    if (mentioned.length > 0) background(notifyRecipients(mentioned, message, "mention"));
   }
 
   return message;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LockKeyhole } from "lucide-react";
 import { checkPin, LOCK_EVENT, readLock, removeLock, type LockConfig } from "@/lib/app-lock";
+import { unbindPushSubscription } from "@/hooks/usePush";
 import { LogoMark } from "./Logo";
 
 const MAX_FAILS = 5;
@@ -113,6 +114,7 @@ export default function AppLock() {
   );
 
   async function signOut() {
+    await unbindPushSubscription();
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     removeLock(); // le code n'a plus de sens une fois déconnecté
     cover(false);

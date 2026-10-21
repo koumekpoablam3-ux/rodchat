@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { pushConfigured } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +40,26 @@ export default async function AdminDashboard() {
       prisma.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`,
     ]);
 
+  const pushSubscriptions = await prisma.pushSubscription.count();
   const used = Number(size[0]?.size ?? 0);
   const percent = Math.min(100, Math.round((used / FREE_DB_BYTES) * 100));
 
   return (
     <div className="space-y-6">
       <h2 className="font-display text-2xl font-bold">Tableau de bord</h2>
+
+      {pushConfigured() ? (
+        <p className="rounded-2xl bg-panel p-4 text-sm text-muted shadow-sm">
+          Notifications : activées sur le serveur. {pushSubscriptions} appareil{pushSubscriptions > 1 ? "s" : ""} abonné
+          {pushSubscriptions > 1 ? "s" : ""}.
+        </p>
+      ) : (
+        <p role="alert" className="rounded-2xl bg-danger/10 p-4 text-sm text-danger shadow-sm">
+          <strong>Notifications désactivées.</strong> Les clés VAPID manquent : personne ne reçoit de notification
+          quand l&apos;application est fermée. Génère-les avec <code>npx web-push generate-vapid-keys</code>, ajoute
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY et VAPID_SUBJECT dans Vercel, puis redéploie.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card label="Comptes" value={users} hint={`${newThisWeek} nouveau${newThisWeek > 1 ? "x" : ""} cette semaine`} />

@@ -10,6 +10,7 @@ import {
   syncConversationRooms,
 } from "@/lib/conversations";
 import { MAX_GROUP_MEMBERS } from "@/lib/limits";
+import { pushInBackground } from "@/lib/push";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
 
@@ -56,6 +57,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const actor = await displayNameOf(userId);
   await postSystemMessage(params.id, userId, `${actor} a ajouté ${joinNames(users.map((u) => u.displayName))}`);
   await broadcastConversation(params.id);
+
+  // Les personnes ajoutées sont prévenues, même sans l'application ouverte
+  pushInBackground(
+    users.map((u) => u.id),
+    {
+      title: member.conversation.name ?? "Groupe",
+      body: `${actor} t'a ajouté au groupe`,
+      url: `/chat/${params.id}`,
+      tag: `added:${params.id}`,
+    },
+  );
 
   const conversation = await getConversationSummary(params.id, userId);
   return NextResponse.json({ conversation });

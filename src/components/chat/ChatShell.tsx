@@ -6,6 +6,7 @@ import StatusProvider from "@/components/status/StatusProvider";
 import AnnouncementBanner from "./AnnouncementBanner";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import NewChatDialog from "./NewChatDialog";
+import NotificationPrompt from "./NotificationPrompt";
 import Sidebar from "./Sidebar";
 
 // Sur ordinateur : liste + discussion côte à côte.
@@ -23,6 +24,7 @@ export default function ChatShell({ children }: { children: React.ReactNode }) {
         <main className={`${isRoot ? "hidden" : "flex"} min-w-0 flex-1 flex-col md:flex`}>{children}</main>
         <NewChatDialog />
         <AnnouncementBanner />
+        <NotificationPrompt />
       </div>
       </StatusProvider>
     </CallProvider>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { displayNameOf } from "@/lib/access";
 import { badRequest, notFound, unauthorized } from "@/lib/api";
 import {
   announceConversation,
@@ -9,6 +10,7 @@ import {
   listConversations,
 } from "@/lib/conversations";
 import { prisma } from "@/lib/prisma";
+import { pushInBackground } from "@/lib/push";
 import { getSessionUserId } from "@/lib/session";
 
 export async function GET() {
@@ -66,6 +68,14 @@ export async function POST(req: Request) {
 
   const id = await createGroupConversation(me, parsed.data.name, memberIds);
   await announceConversation(id);
+
+  // Chaque membre est prévenu de son ajout au groupe
+  pushInBackground(memberIds, {
+    title: parsed.data.name,
+    body: `${await displayNameOf(me)} t'a ajouté au groupe`,
+    url: `/chat/${id}`,
+    tag: `added:${id}`,
+  });
 
   const conversation = await getConversationSummary(id, me);
   return NextResponse.json({ conversation, created: true }, { status: 201 });

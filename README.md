@@ -170,13 +170,34 @@ Pourquoi cette vérification : sans elle, quelqu'un pourrait créer un compte av
 - Sur certains réseaux un serveur TURN devient indispensable (voir plus haut), et encore plus en groupe.
 - Le résultat de l'appel (durée, manqué) apparaît dans la discussion comme pour un appel à deux.
 
-## Notifications push (facultatif)
+## Notifications push
+
+Sans elles, personne n'est prévenu quand l'application est fermée : **elles sont indispensables**.
 
 ```bash
 npx web-push generate-vapid-keys
 ```
 
-Colle la clé publique dans `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, la privée dans `VAPID_PRIVATE_KEY`, relance, puis « Activer les notifications » dans le menu. Elles partent uniquement aux personnes sans appareil connecté. Sur iPhone, l'app doit d'abord être ajoutée à l'écran d'accueil.
+Dans Vercel → *Settings → Environment Variables*, ajoute :
+
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` : la clé publique (« Public Key ») ;
+- `VAPID_PRIVATE_KEY` : la clé privée (« Private Key »), à garder secrète ;
+- `VAPID_SUBJECT` : `mailto:` suivi de ton adresse e-mail.
+
+Puis **redéploie** (la clé publique est intégrée à l'application à la construction). Le tableau de bord administrateur affiche en rouge « Notifications désactivées » tant que les clés manquent, et le nombre d'appareils abonnés sinon.
+
+Chaque personne reçoit une invitation « Activer » à l'ouverture de l'application (une fois, puis rappel après 7 jours si elle choisit « Plus tard »), ou la trouve dans le menu et les réglages. Sur iPhone, l'app doit d'abord être ajoutée à l'écran d'accueil (iOS 16.4 ou plus).
+
+**Ce qui déclenche une notification**
+
+- un message (texte, photo, vidéo, vocal, document, sondage), dans une discussion à deux ou un groupe, sauf discussion en sourdine ;
+- une mention (`@pseudo`), même en sourdine, et une réponse à son propre message ;
+- un appel entrant (à deux ou de groupe), avec sonnerie persistante ;
+- une réaction à son message, un vote à son sondage ;
+- un ajout à un groupe (création ou ajout ultérieur) ;
+- pour les administrateurs : une demande de mot de passe oublié et un signalement.
+
+Les notifications partent vers **tous** les appareils de la personne, connectés ou non. Le service worker n'en affiche aucune si l'application est ouverte, visible et active sur cet appareil (la personne la regarde) ; sur Safari, il en affiche une sans bruit et la retire aussitôt, sinon Safari supprime l'abonnement. Elles sont envoyées en priorité haute pour arriver même téléphone en veille. À la déconnexion, l'appareil est désabonné du compte ; à la connexion suivante, il est rattaché au nouveau compte.
 
 ## Structure
 
@@ -205,7 +226,7 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
 
 - **Navigateur → serveur** : des requêtes POST (message texte, « lu », « en train d'écrire », signalisation des appels).
 - **Serveur → navigateur** : un flux SSE par onglet. Chaque flux relit la table `RealtimeEvent` et ne renvoie que ce qui concerne la personne : ses événements, ceux de ses discussions (appartenance relue en base, donc quelqu'un retiré d'un groupe ne reçoit plus rien), et ceux de son onglet. Après ~50 s le flux se referme proprement et le navigateur le rouvre en reprenant au dernier événement reçu : rien n'est perdu, et on reste sous la durée maximale d'une fonction Vercel.
-- **Présence** : chaque flux donne un signe de vie toutes les 8 s (`RealtimeConnection`). Un appareil sans signe de vie depuis 30 s est « hors ligne » : il reçoit alors les notifications push, et ses contacts voient « dernière connexion ».
+- **Présence** : chaque flux donne un signe de vie toutes les 8 s (`RealtimeConnection`). Un appareil sans signe de vie depuis 30 s est « hors ligne » : ses contacts voient alors « dernière connexion » (les notifications push, elles, partent de toute façon vers tous les appareils).
 - **Appels** : l'état (qui sonne, qui est dans l'appel) est dans `Call` et `GroupCallParticipant`. Le son et l'image passent toujours directement d'un appareil à l'autre.
 - **Rythme de lecture** : le flux relit la file toutes les **1 s au repos**, 400 ms quand de l'activité vient d'arriver (15 s), et **250 ms pendant un appel** (le navigateur ajoute `?fast=1`). Les tâches de fond (appels en attente, messages programmés, présence) tournent toutes les 10 à 15 s. Cela divise par deux ou plus les requêtes vers Neon au repos.
 - Délai typique d'un message : 0,3 à 1,2 s.
@@ -239,7 +260,7 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
 - **Neon ne s'endort plus tant que quelqu'un est connecté.** Chaque onglet ouvert interroge la base toutes les secondes (plus souvent pendant un appel) ; sans personne de connecté, Neon se met en veille normalement. Les onglets cachés coupent leur flux après une minute, donc seuls les onglets réellement ouverts à l'écran comptent. Surveille quand même les heures de calcul dans le tableau de bord Neon. Le premier message après une longue veille met 1 à 2 s de plus (réveil de Neon).
 - **Durée des fonctions** : le flux SSE est limité à 60 s par fonction (compatible plan Hobby), d'où la réouverture automatique toutes les ~50 s. Elle est invisible pour la personne.
 - **Fichiers de 4 Mo maximum** : Vercel refuse les envois de plus de 4,5 Mo. La limite est réglée à 4 Mo sur Vercel (`NEXT_PUBLIC_MAX_UPLOAD_MB` pour la baisser). Les photos sont réduites avant l'envoi et les vocaux sont légers ; les vidéos et gros documents sont concernés. Pour aller au-delà, il faudrait envoyer les fichiers vers un stockage (Vercel Blob, S3…) au lieu de PostgreSQL.
-- **Onglets en arrière-plan** : un onglet caché depuis plus d'une minute (et hors appel) coupe son flux : la personne passe « hors ligne », reçoit les notifications push, et Neon peut se rendormir. Au retour sur l'onglet, tout se rattrape tout seul. Pendant un appel, le flux reste ouvert.
+- **Onglets en arrière-plan** : un onglet caché depuis plus d'une minute (et hors appel) coupe son flux : la personne passe « hors ligne » et Neon peut se rendormir ; les notifications push continuent d'arriver. Au retour sur l'onglet, tout se rattrape tout seul. Pendant un appel, le flux reste ouvert.
 - **Appels** : un appel de groupe se limite à 6 personnes (maillage WebRTC). Un serveur TURN devient indispensable sur de nombreux réseaux mobiles.
 - **Service worker et push** : inchangés (HTTPS fourni par Vercel).
 - **Limiteur de débit** : connexion, inscription, invitations, envois de fichiers et avatars sont limités par un compteur stocké dans Neon (table `RateLimit`), valable pour toutes les instances. Les usages très fréquents (recherche, réactions, signalisation des appels) utilisent un compteur en mémoire, plus approximatif.
