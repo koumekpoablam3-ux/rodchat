@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import CallProvider from "@/components/call/CallProvider";
 import StatusProvider from "@/components/status/StatusProvider";
 import AnnouncementBanner from "./AnnouncementBanner";
+import AppBadge from "./AppBadge";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import NewChatDialog from "./NewChatDialog";
 import NotificationPrompt from "./NotificationPrompt";
@@ -25,6 +26,7 @@ export default function ChatShell({ children }: { children: React.ReactNode }) {
         <NewChatDialog />
         <AnnouncementBanner />
         <NotificationPrompt />
+        <AppBadge />
       </div>
       </StatusProvider>
     </CallProvider>

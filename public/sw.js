@@ -7,6 +7,22 @@
 const VERSION = "rodchat-v2";
 const STATIC_CACHE = `${VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
+// Compteur de la pastille de l'icône : il survit aux mises à jour du service worker et l'application l'écrit aussi
+const BADGE_CACHE = "rodchat-badge";
+const BADGE_KEY = "/__badge";
+
+/** Pastille sur l'icône de l'application installée : +1 à chaque notification reçue application fermée */
+async function bumpBadge() {
+  try {
+    const cache = await caches.open(BADGE_CACHE);
+    const stored = await cache.match(BADGE_KEY);
+    const next = (stored ? parseInt(await stored.text(), 10) || 0 : 0) + 1;
+    await cache.put(BADGE_KEY, new Response(String(next)));
+    if (self.navigator.setAppBadge) await self.navigator.setAppBadge(next);
+  } catch {
+    /* pastille non prise en charge ici : sans importance */
+  }
+}
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -22,7 +38,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => !key.startsWith(VERSION)).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(keys.filter((key) => !key.startsWith(VERSION) && key !== BADGE_CACHE).map((key) => caches.delete(key))),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -73,7 +91,10 @@ self.addEventListener("push", (event) => {
       // on en affiche une, sans bruit, et on la retire aussitôt.
       const ua = self.navigator.userAgent;
       const safari = /AppleWebKit/.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|Edg|Android/.test(ua);
-      if (watching && !safari) return;
+      const force = data.force === true;
+      if (watching && !safari && !force) return;
+      // Application fermée ou en arrière-plan : la pastille de l'icône signale qu'il y a quelque chose
+      if (!watching || force) await bumpBadge();
 
       const tag = data.tag || "rodchat";
       await self.registration.showNotification(data.title || "Rodchat", {
@@ -82,12 +103,12 @@ self.addEventListener("push", (event) => {
         tag,
         // Un nouveau message dans la même discussion remplace la notification ET sonne à nouveau
         renotify: data.renotify !== false,
-        silent: watching,
-        requireInteraction: !watching && data.requireInteraction === true,
+        silent: watching && !force,
+        requireInteraction: !(watching && !force) && data.requireInteraction === true,
         vibrate: [120, 60, 120],
         data: { url: data.url || "/chat" },
       });
-      if (watching) {
+      if (watching && !force) {
         await new Promise((resolve) => setTimeout(resolve, 2500));
         const shown = await self.registration.getNotifications({ tag });
         shown.forEach((notification) => notification.close());

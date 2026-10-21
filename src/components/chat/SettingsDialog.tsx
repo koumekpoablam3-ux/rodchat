@@ -11,6 +11,7 @@ import DataSaverSection from "./DataSaverSection";
 import DevicesSection from "./DevicesSection";
 import PaletteSection from "./PaletteSection";
 import PhoneSection from "./PhoneSection";
+import PushTest from "./PushTest";
 
 type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean };
 
@@ -187,12 +188,15 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
                     Les notifications sont bloquées. Autorise-les dans les réglages de ton navigateur.
                   </p>
                 ) : (
-                  <Switch
-                    label="Notifications sur cet appareil"
-                    hint="Reçois les nouveaux messages même quand Rodchat est fermé."
-                    checked={push.state === "on"}
-                    onChange={(value) => void (value ? push.enable() : push.disable())}
-                  />
+                  <>
+                    <Switch
+                      label="Notifications sur cet appareil"
+                      hint="Reçois les nouveaux messages même quand Rodchat est fermé."
+                      checked={push.state === "on"}
+                      onChange={(value) => void (value ? push.enable() : push.disable())}
+                    />
+                    <PushTest />
+                  </>
                 )}
               </section>
 

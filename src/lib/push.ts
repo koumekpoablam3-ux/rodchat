@@ -10,27 +10,60 @@ export type PushPayload = {
   requireInteraction?: boolean;
   /** Un tag identique remplace la notification précédente ; faux = sans nouvelle sonnerie (réactions, votes) */
   renotify?: boolean;
+  /** Affiche la notification même si l'application est au premier plan (bouton « Envoyer un test ») */
+  force?: boolean;
 };
 
+let warned = false;
+
 let configured = false;
+let configProblem: string | null = null;
+
+/** Une valeur collée dans Vercel garde souvent un espace, un retour à la ligne ou des guillemets : on les retire */
+const clean = (value: string | undefined) => (value ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
 
 function configure() {
   if (configured) return true;
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) return false;
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:contact@rodchat.app",
-    publicKey,
-    privateKey,
-  );
-  configured = true;
-  return true;
+  const publicKey = clean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+  const privateKey = clean(process.env.VAPID_PRIVATE_KEY);
+  if (!publicKey || !privateKey) {
+    configProblem =
+      "Clés VAPID absentes : ajoute NEXT_PUBLIC_VAPID_PUBLIC_KEY et VAPID_PRIVATE_KEY dans Vercel, puis redéploie.";
+    if (!warned) {
+      warned = true;
+      console.warn("[push]", configProblem);
+    }
+    return false;
+  }
+  // Le sujet doit être une adresse « mailto: » ou une adresse https:// ; une simple adresse e-mail est corrigée
+  let subject = clean(process.env.VAPID_SUBJECT);
+  if (!/^(mailto:|https:\/\/)/.test(subject)) {
+    subject = subject.includes("@") ? `mailto:${subject}` : "mailto:contact@rodchat.app";
+  }
+  try {
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+    configured = true;
+    configProblem = null;
+    return true;
+  } catch (error) {
+    configProblem = `Clés VAPID invalides (${(error as Error).message}). Génère une nouvelle paire avec « npx web-push generate-vapid-keys » et recopie-la sans espace.`;
+    if (!warned) {
+      warned = true;
+      console.error("[push]", configProblem);
+    }
+    return false;
+  }
 }
 
-/** Les notifications sont-elles configurées sur ce serveur (clés VAPID) ? */
+/** Les notifications sont-elles prêtes sur ce serveur (clés VAPID présentes ET valides) ? */
 export function pushConfigured() {
-  return configured || Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+  return configure();
+}
+
+/** Ce qui empêche les notifications d'être envoyées, ou null si tout est en ordre */
+export function pushProblem() {
+  configure();
+  return configProblem;
 }
 
 /**
@@ -39,7 +72,8 @@ export function pushConfigured() {
  * Si l'application est ouverte et au premier plan sur l'appareil, le service worker n'affiche rien.
  */
 export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
-  if (userIds.length === 0 || !configure()) return;
+  const result = { sent: 0, failed: 0, statuses: [] as number[] };
+  if (userIds.length === 0 || !configure()) return result;
 
   const subscriptions = await prisma.pushSubscription.findMany({
     where: { userId: { in: userIds } },
@@ -53,8 +87,11 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
           JSON.stringify(payload),
           { urgency: "high", TTL: 60 * 60 * 24 },
         );
+        result.sent += 1;
       } catch (error) {
+        result.failed += 1;
         const status = (error as { statusCode?: number }).statusCode;
+        if (status) result.statuses.push(status);
         if (status === 404 || status === 410) {
           // Abonnement expiré : on le supprime
           await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
@@ -64,6 +101,7 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
       }
     }),
   );
+  return result;
 }
 
 /** Envoie sans faire attendre la réponse de la requête en cours */

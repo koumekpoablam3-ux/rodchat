@@ -197,6 +197,10 @@ Chaque personne reçoit une invitation « Activer » à l'ouverture de l'applica
 - un ajout à un groupe (création ou ajout ultérieur) ;
 - pour les administrateurs : une demande de mot de passe oublié et un signalement.
 
+**Pastille sur l'icône.** Sur l'application installée (Chrome, Edge, Android, iPhone 16.4+), l'icône (barre des tâches, Dock, écran d'accueil) affiche un nombre : application fermée, le service worker l'augmente de 1 à chaque notification reçue ; application ouverte, elle indique le nombre de discussions non lues (hors sourdine et archives, sauf mention) et disparaît quand tout est lu. Le même nombre apparaît entre parenthèses dans le titre de l'onglet. Firefox ne gère pas les pastilles.
+
+**Vérifier que tout marche.** *Réglages → Notifications → Envoyer une notification de test* : si rien ne part, le message dit précisément pourquoi (clés VAPID absentes, aucun appareil abonné, abonnement expiré). Le journal de Vercel contient aussi un avertissement `[push] Clés VAPID absentes` tant que les clés manquent.
+
 Les notifications partent vers **tous** les appareils de la personne, connectés ou non. Le service worker n'en affiche aucune si l'application est ouverte, visible et active sur cet appareil (la personne la regarde) ; sur Safari, il en affiche une sans bruit et la retire aussitôt, sinon Safari supprime l'abonnement. Elles sont envoyées en priorité haute pour arriver même téléphone en veille. À la déconnexion, l'appareil est désabonné du compte ; à la connexion suivante, il est rattaché au nouveau compte.
 
 ## Structure

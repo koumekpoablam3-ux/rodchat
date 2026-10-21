@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { pushConfigured } from "@/lib/push";
+import { pushConfigured, pushProblem } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -55,9 +55,7 @@ export default async function AdminDashboard() {
         </p>
       ) : (
         <p role="alert" className="rounded-2xl bg-danger/10 p-4 text-sm text-danger shadow-sm">
-          <strong>Notifications désactivées.</strong> Les clés VAPID manquent : personne ne reçoit de notification
-          quand l&apos;application est fermée. Génère-les avec <code>npx web-push generate-vapid-keys</code>, ajoute
-          NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY et VAPID_SUBJECT dans Vercel, puis redéploie.
+          <strong>Notifications désactivées.</strong> {pushProblem()}
         </p>
       )}
 

@@ -3,7 +3,7 @@
 export const SW_ENABLED =
   process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_ENABLE_SW === "true";
 
-export const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+export const VAPID_PUBLIC_KEY = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "").trim().replace(/^["']+|["']+$/g, "");
 
 /** Convertit la clé VAPID (base64 URL) au format attendu par pushManager.subscribe */
 export function urlBase64ToUint8Array(base64: string) {
