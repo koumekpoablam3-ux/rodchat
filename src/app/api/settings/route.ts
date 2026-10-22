@@ -5,12 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/session";
 import { THEME_COOKIE } from "@/lib/theme";
 
-const settingsSelect = { theme: true, readReceipts: true, lastSeenVisible: true } as const;
+const settingsSelect = { theme: true, readReceipts: true, lastSeenVisible: true, pushPreview: true } as const;
 
 const schema = z.object({
   theme: z.enum(["auto", "light", "dark"]).optional(),
   readReceipts: z.boolean().optional(),
   lastSeenVisible: z.boolean().optional(),
+  pushPreview: z.boolean().optional(),
 });
 
 export async function GET() {

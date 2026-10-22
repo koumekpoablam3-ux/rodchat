@@ -26,7 +26,7 @@ export default function AppBadge() {
 
   const now = Date.now();
   const count = conversations.filter((conversation) => {
-    if (conversation.unreadCount <= 0) return false;
+    if (conversation.unreadCount <= 0 && !conversation.markedUnread) return false;
     if (conversation.hasUnreadMention) return true;
     const muted = conversation.mutedUntil ? new Date(conversation.mutedUntil).getTime() > now : false;
     return !muted && !conversation.archivedAt;

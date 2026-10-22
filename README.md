@@ -290,9 +290,23 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
 
 **Réactions.** 8 emojis : 👍 ❤️ 😂 😮 😢 🙏 👏 🔥.
 
+**Confort d'écriture (ordinateur et téléphone).**
+- *Mise en forme* dans un message : `*gras*` (ou `**gras**`), `_italique_`, `~barré~` et `` `code` ``. Les marques doivent toucher le texte et s'ouvrir en début de mot : `snake_case_nom`, `2*3*4` ou `* liste *` restent intacts, et rien ne traverse un retour à la ligne. Les adresses web ne sont jamais mises en forme. `Ctrl/⌘ + B` et `Ctrl/⌘ + I` entourent la sélection (code dans `src/lib/formatting.ts`).
+- *Gros emojis* : un message qui ne contient que 1 à 3 emojis s'affiche en grand.
+- *Coller une image* (capture d'écran, image copiée) dans le champ de saisie l'envoie comme photo ; le texte collé n'est pas touché.
+- *Glisser-déposer* : lâcher des fichiers n'importe où dans la fenêtre d'une discussion les envoie (10 au plus à la fois, mêmes limites de taille que le bouton trombone).
+- *Raccourcis clavier* : `Ctrl/⌘ + K` cherche, `Alt + ↑/↓` change de discussion. La liste est dans *Paramètres → Raccourcis clavier*.
+- *Personnes bloquées* : *Paramètres → Personnes bloquées* liste tout le monde, avec un bouton « Débloquer ».
+- *Marquer comme non lue* : appui long sur une discussion de la liste (ou menu ⋮) → « Marquer comme non lue ». Un point apparaît, compté dans le filtre « Non lues » et dans la pastille de l'icône ; il disparaît quand on ouvre la discussion (ou « Marquer comme lue »). Réglage personnel, synchronisé entre appareils.
+- *Aperçu des notifications* : *Paramètres → Notifications → Afficher le contenu*. Désactivé, la notification dit seulement « Nouveau message », sans nom ni texte.
+
+**Performance.** Les bulles de message sont mémoïsées (`BubbleRow`) : quelqu'un qui écrit, un changement de présence ou un nouveau message ne refait plus que la bulle concernée au lieu de toute la discussion, ce qui compte sur un téléphone d'entrée de gamme et une longue conversation. Les photos des messages, les aperçus de liens et les avatars sont chargés à la demande ; les fichiers et photos de profil sont mis en cache un an dans le navigateur (`immutable`).
+
+**Après une mise à jour avec nouveaux champs :** lance `npx prisma db push` (cette version ajoute `Participant.markedUnread` et `User.pushPreview`, avec une valeur par défaut : aucune donnée n'est perdue).
+
 ## Pistes pour la suite
 
-Mentions `@` dans les groupes, statuts, liste de personnes bloquées, appels de groupe de plus de 6 personnes (serveur média), restriction « seuls les admins écrivent » dans un groupe, chiffrement de bout en bout, limiteur de débit partagé (Redis) si plusieurs instances, recherche plein texte pour une très grosse base.
+Appels de groupe de plus de 6 personnes (serveur média), chiffrement de bout en bout, limiteur de débit partagé (Redis) si plusieurs instances, recherche plein texte pour une très grosse base.
 
 
 ## Feuille de route (d'après la proposition d'évolution)

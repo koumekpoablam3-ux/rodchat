@@ -112,7 +112,7 @@ async function markRead(userId: string, data: Data): Promise<Ack> {
 
   const now = new Date();
   const settings = await prisma.user.findUnique({ where: { id: userId }, select: { readReceipts: true } });
-  await prisma.participant.updateMany({ where: { userId, conversationId }, data: { lastReadAt: now } });
+  await prisma.participant.updateMany({ where: { userId, conversationId }, data: { lastReadAt: now, markedUnread: false } });
 
   if (settings?.readReceipts === false) {
     // Accusés désactivés : l'expéditeur voit « remis », jamais « lu ».

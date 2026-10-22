@@ -145,6 +145,7 @@ async function buildSummary(
     archivedAt: mine?.archivedAt ? mine.archivedAt.toISOString() : null,
     mutedUntil: mine?.mutedUntil ? mine.mutedUntil.toISOString() : null,
     unreadCount,
+    markedUnread: mine?.markedUnread ?? false,
     hasUnreadMention,
     pinnedMessages,
     lastMessage: last

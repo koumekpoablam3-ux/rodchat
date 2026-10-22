@@ -65,6 +65,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
             url: `/chat/${message.conversationId}`,
             tag: `react:${message.id}:${userId}`,
             renotify: false,
+            hide: { title: "Rodchat", body: "Nouvelle réaction à ton message" },
           });
         })(),
       );

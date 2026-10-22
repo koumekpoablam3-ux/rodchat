@@ -6,14 +6,16 @@ import { usePush } from "@/hooks/usePush";
 import { apiRequest } from "@/lib/client-api";
 import type { Theme } from "@/lib/theme";
 import AccountSecuritySection from "./AccountSecuritySection";
+import BlockedSection from "./BlockedSection";
 import AppLockSection from "./AppLockSection";
 import DataSaverSection from "./DataSaverSection";
 import DevicesSection from "./DevicesSection";
 import PaletteSection from "./PaletteSection";
 import PhoneSection from "./PhoneSection";
 import PushTest from "./PushTest";
+import ShortcutsSection from "./ShortcutsSection";
 
-type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean };
+type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean; pushPreview: boolean };
 
 const THEMES: { id: Theme; label: string }[] = [
   { id: "auto", label: "Automatique" },
@@ -195,16 +197,26 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
                       checked={push.state === "on"}
                       onChange={(value) => void (value ? push.enable() : push.disable())}
                     />
+                    <Switch
+                      label="Afficher le contenu"
+                      hint="Quand c'est désactivé, une notification dit seulement « Nouveau message », sans le nom ni le texte (utile si ton écran est visible par d'autres)."
+                      checked={settings.pushPreview}
+                      onChange={(value) => void change({ pushPreview: value })}
+                    />
                     <PushTest />
                   </>
                 )}
               </section>
+
+              <BlockedSection />
 
               <PhoneSection />
 
               <PaletteSection />
 
               <DataSaverSection />
+
+              <ShortcutsSection />
 
               <DevicesSection />
 

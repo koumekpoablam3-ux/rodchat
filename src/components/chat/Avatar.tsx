@@ -42,7 +42,7 @@ export default function Avatar({ id, name, avatarUrl, isGroup, size = 48, online
 
   const picture = avatarUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={avatarUrl} alt="" className="rounded-full object-cover" style={style} />
+    <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="rounded-full object-cover" style={style} />
   ) : (
     <span
       aria-hidden="true"

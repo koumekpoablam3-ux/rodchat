@@ -130,6 +130,13 @@ function ConversationRow({ conversation, active, typing, online, meId, draft, on
               {conversation.hasUnreadMention ? (
                 <AtSign size={17} aria-label="Tu es mentionné(e)" className="text-brand" />
               ) : null}
+              {unread === 0 && conversation.markedUnread ? (
+                <span
+                  role="img"
+                  aria-label="Marquée comme non lue"
+                  className="h-3 w-3 rounded-full bg-accent"
+                />
+              ) : null}
               {unread > 0 ? (
                 <span
                   className={`min-w-5 rounded-full px-1.5 text-center text-xs font-bold leading-5 ${
@@ -152,7 +159,7 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
   const pathname = usePathname();
   const drafts = useDrafts();
   const router = useRouter();
-  const { me, conversations, onlineIds, typingByConv, setNewChatOpen, updateConversationSettings } = useChat();
+  const { me, conversations, onlineIds, typingByConv, setNewChatOpen, updateConversationSettings, markRead } = useChat();
   const [tab, setTab] = useState<SidebarTab>("chats");
   const [filter, setFilter] = useState("");
   const [chip, setChip] = useState<"all" | "unread" | "groups">("all");
@@ -171,10 +178,10 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
     if (q) return conversations.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
     const base = conversations.filter((c) => (showArchived ? c.archivedAt !== null : c.archivedAt === null));
     if (showArchived || chip === "all") return base;
-    return base.filter((c) => (chip === "unread" ? c.unreadCount > 0 : c.isGroup));
+    return base.filter((c) => (chip === "unread" ? c.unreadCount > 0 || c.markedUnread : c.isGroup));
   }, [conversations, q, showArchived, chip]);
 
-  const unreadChats = conversations.filter((c) => c.archivedAt === null && c.unreadCount > 0).length;
+  const unreadChats = conversations.filter((c) => c.archivedAt === null && (c.unreadCount > 0 || c.markedUnread)).length;
 
   const menuConversation = menuId ? (conversations.find((c) => c.id === menuId) ?? null) : null;
   const muteConversation = muteId ? (conversations.find((c) => c.id === muteId) ?? null) : null;
@@ -391,6 +398,17 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
           onClose={() => setMenuId(null)}
           onTogglePin={() => void change(menuConversation.id, { pinned: menuConversation.pinnedAt === null })}
           onToggleArchive={() => void change(menuConversation.id, { archived: menuConversation.archivedAt === null })}
+          onToggleUnread={() => {
+            const target = menuConversation;
+            if (target.unreadCount > 0 || target.markedUnread) {
+              // Lue : les messages non lus sont marqués lus, et la marque « non lue » est retirée
+              setMenuId(null);
+              markRead(target.id);
+              if (target.markedUnread) void change(target.id, { markedUnread: false });
+            } else {
+              void change(target.id, { markedUnread: true });
+            }
+          }}
           onToggleMute={() => {
             if (isMuted(menuConversation.mutedUntil)) void change(menuConversation.id, { mutedUntil: null });
             else {

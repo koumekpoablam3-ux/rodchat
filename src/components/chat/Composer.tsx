@@ -26,6 +26,9 @@ type ComposerProps = {
   onCancelEdit: () => void;
 };
 
+/** Fichiers envoyés d'un coup (glisser-déposer ou collage) */
+const MAX_FILES_AT_ONCE = 10;
+
 const menuItem =
   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-bg focus-visible:bg-bg";
 
@@ -44,6 +47,46 @@ export default function Composer({
   const [pollOpen, setPollOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
+  // Toujours la dernière version de l'envoi (elle dépend de la réponse en cours) pour les écouteurs de la fenêtre
+  const uploadRef = useRef<(files: File[]) => Promise<void>>(async () => {});
+
+  // Glisser-déposer : on peut lâcher des fichiers n'importe où dans la fenêtre
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+    const onEnter = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      depth += 1;
+      setDragging(true);
+    };
+    const onOver = (event: DragEvent) => {
+      if (hasFiles(event)) event.preventDefault(); // sans cela, le navigateur ouvre le fichier au lieu de le déposer
+    };
+    const onLeave = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDragging(false);
+    };
+    const onDrop = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      depth = 0;
+      setDragging(false);
+      const files = Array.from(event.dataTransfer?.files ?? []);
+      if (files.length > 0) void uploadRef.current(files);
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, []);
   const [menuOpen, setMenuOpen] = useState(false);
   // « @ » en cours de frappe dans un groupe : suggestions de membres
   const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
@@ -278,7 +321,40 @@ export default function Composer({
     clearText();
   }
 
+  /** Entoure la sélection de marques de mise en forme (*gras*, _italique_) ; sans sélection, place le curseur entre les deux */
+  function wrapSelection(marker: string) {
+    const area = textareaRef.current;
+    if (!area) return;
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const selected = text.slice(start, end);
+    const next = text.slice(0, start) + marker + selected + marker + text.slice(end);
+    if (next.length > MAX_MESSAGE_LENGTH) return;
+    setText(next);
+    requestAnimationFrame(() => {
+      area.focus();
+      const caret = selected ? end + marker.length * 2 : start + marker.length;
+      area.setSelectionRange(selected ? start : caret, caret);
+    });
+  }
+
+  function onPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    // Une capture d'écran ou une image copiée part comme photo ; le texte collé n'est pas touché
+    const files = Array.from(event.clipboardData.files);
+    if (files.length === 0) return;
+    event.preventDefault();
+    void uploadFiles(files);
+  }
+
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing) {
+      const key = event.key.toLowerCase();
+      if (key === "b" || key === "i") {
+        event.preventDefault();
+        wrapSelection(key === "b" ? "*" : "_");
+        return;
+      }
+    }
     if (suggestions.length > 0 && !event.nativeEvent.isComposing) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -315,8 +391,13 @@ export default function Composer({
     const files = Array.from(event.target.files ?? []);
     event.target.value = ""; // permet de choisir deux fois le même fichier
     setMenuOpen(false);
+    await uploadFiles(files, kind);
+  }
 
-    for (const file of files) {
+  /** Envoie des fichiers (choisis, collés ou déposés). Sans type imposé, il se déduit de chaque fichier. */
+  async function uploadFiles(files: File[], forcedKind?: "IMAGE" | "VIDEO" | "FILE") {
+    for (const file of files.filter((candidate) => candidate.size > 0).slice(0, MAX_FILES_AT_ONCE)) {
+      const kind = forcedKind ?? (file.type.startsWith("image/") ? "IMAGE" : file.type.startsWith("video/") ? "VIDEO" : "FILE");
       let problem: string | null;
       if (kind === "IMAGE") {
         const image = await prepareImage(file);
@@ -351,9 +432,20 @@ export default function Composer({
   }
 
   const hasText = text.trim().length > 0;
+  uploadRef.current = (files) => uploadFiles(files);
 
   return (
     <div className="border-t border-line bg-panel px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 md:px-4">
+      {dragging ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-black/50 p-6 text-center text-lg font-semibold text-white"
+        >
+          <span className="rounded-2xl border-2 border-dashed border-white/80 px-8 py-10">
+            Dépose les fichiers ici pour les envoyer
+          </span>
+        </div>
+      ) : null}
       {error ? (
         <p role="alert" className="mb-2 rounded-xl bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
           {error}
@@ -546,6 +638,7 @@ export default function Composer({
               maxLength={MAX_MESSAGE_LENGTH}
               onChange={onChange}
               onKeyDown={onKeyDown}
+              onPaste={onPaste}
               onBlur={() => setMention(null)}
               placeholder={editing ? "Modifie ton message" : "Écris un message"}
               className="max-h-36 min-h-11 w-full resize-none rounded-2xl border border-line bg-bg px-4 py-2.5 text-[15px] leading-snug placeholder:text-muted"

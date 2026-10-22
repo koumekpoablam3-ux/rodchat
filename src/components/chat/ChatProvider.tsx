@@ -32,6 +32,8 @@ export type ConversationSettingsPatch = {
   archived?: boolean;
   /** Date de fin de sourdine, ou null pour réactiver le son */
   mutedUntil?: string | null;
+  /** « Marquer comme non lu » / retirer la marque */
+  markedUnread?: boolean;
 };
 
 export type GroupPatch = {
@@ -615,8 +617,8 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       if (data.userId === meId) {
         setConversations((prev) =>
           prev.map((c) =>
-            c.id === data.conversationId && c.unreadCount > 0
-              ? { ...c, unreadCount: 0, hasUnreadMention: false }
+            c.id === data.conversationId && (c.unreadCount > 0 || c.markedUnread)
+              ? { ...c, unreadCount: 0, hasUnreadMention: false, markedUnread: false }
               : c,
           ),
         );

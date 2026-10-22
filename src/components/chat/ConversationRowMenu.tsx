@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Archive, ArchiveRestore, Bell, BellOff, Pin, PinOff } from "lucide-react";
+import { Archive, ArchiveRestore, Bell, BellOff, CircleDot, MailOpen, Pin, PinOff } from "lucide-react";
 import { isMuted } from "@/lib/conversation-sort";
 import type { ConversationSummary } from "@/types/chat";
 
@@ -10,6 +10,8 @@ type ConversationRowMenuProps = {
   onClose: () => void;
   onTogglePin: () => void;
   onToggleArchive: () => void;
+  /** Marque comme non lue, ou comme lue si elle l'est déjà (messages non lus ou marque) */
+  onToggleUnread: () => void;
   /** Ouvre le choix de durée, ou réactive le son */
   onToggleMute: () => void;
 };
@@ -23,6 +25,7 @@ export default function ConversationRowMenu({
   onClose,
   onTogglePin,
   onToggleArchive,
+  onToggleUnread,
   onToggleMute,
 }: ConversationRowMenuProps) {
   useEffect(() => {
@@ -58,6 +61,14 @@ export default function ConversationRowMenu({
         <button type="button" className={item} onClick={onToggleArchive}>
           {archived ? <ArchiveRestore size={19} aria-hidden="true" /> : <Archive size={19} aria-hidden="true" />}
           {archived ? "Désarchiver" : "Archiver"}
+        </button>
+        <button type="button" className={item} onClick={onToggleUnread}>
+          {conversation.unreadCount > 0 || conversation.markedUnread ? (
+            <MailOpen size={19} aria-hidden="true" />
+          ) : (
+            <CircleDot size={19} aria-hidden="true" />
+          )}
+          {conversation.unreadCount > 0 || conversation.markedUnread ? "Marquer comme lue" : "Marquer comme non lue"}
         </button>
         <button type="button" className={item} onClick={onToggleMute}>
           {muted ? <Bell size={19} aria-hidden="true" /> : <BellOff size={19} aria-hidden="true" />}

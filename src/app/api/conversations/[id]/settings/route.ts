@@ -12,9 +12,11 @@ const schema = z.object({
   archived: z.boolean().optional(),
   // Date de fin de sourdine, ou null pour réactiver le son
   mutedUntil: z.string().datetime().nullable().optional(),
+  // « Marquer comme non lu » / retirer la marque
+  markedUnread: z.boolean().optional(),
 });
 
-// Réglages personnels d'une discussion : épingler, archiver, sourdine
+// Réglages personnels d'une discussion : épingler, archiver, sourdine, marquer comme non lu
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const userId = await getSessionUserId();
   if (!userId) return unauthorized();
@@ -24,9 +26,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return badRequest("Réglage invalide.");
-  const { pinned, archived, mutedUntil } = parsed.data;
+  const { pinned, archived, mutedUntil, markedUnread } = parsed.data;
 
-  const data: { pinnedAt?: Date | null; archivedAt?: Date | null; mutedUntil?: Date | null } = {};
+  const data: { pinnedAt?: Date | null; archivedAt?: Date | null; mutedUntil?: Date | null; markedUnread?: boolean } = {};
+
+  if (markedUnread !== undefined) data.markedUnread = markedUnread;
 
   if (pinned === true) {
     if (!member.pinnedAt) {

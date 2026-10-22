@@ -22,6 +22,7 @@ import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { formatBytes, formatTime } from "@/lib/format";
 import type { MessageStatus } from "@/lib/message-status";
 import { hueFromId } from "@/lib/utils";
+import { isEmojiOnly } from "@/lib/formatting";
 import type { ChatMessage } from "@/types/chat";
 import ImageViewer from "./ImageViewer";
 import LinkCard from "./LinkCard";
@@ -444,7 +445,13 @@ export default function MessageBubble({
         {message.type === "TEXT" && !isDeleted ? (
           <>
             {message.linkPreview && !dataSaver.active ? <LinkCard preview={message.linkPreview} mine={mine} /> : null}
-            <span className="whitespace-pre-wrap break-words">
+            <span
+              className={
+                isEmojiOnly(message.content)
+                  ? "block whitespace-pre-wrap break-words text-[2.6rem] leading-tight"
+                  : "whitespace-pre-wrap break-words"
+              }
+            >
               <Linkify text={message.content ?? ""} mentionable={mentionable} meUsername={meUsername} />
             </span>
             <span className={`float-right ml-3 mt-2 inline-flex items-center gap-1 text-[11px] leading-none ${metaTone}`}>

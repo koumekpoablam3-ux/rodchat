@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { splitFormatting } from "@/lib/formatting";
 import { splitMentions } from "@/lib/mentions";
 
 const URL_SPLIT = /(https?:\/\/[^\s<>"'`]+)/gi;
@@ -12,7 +13,7 @@ type LinkifyProps = {
   meUsername?: string;
 };
 
-function Plain({ text, mentionable, meUsername }: LinkifyProps) {
+function Mentions({ text, mentionable, meUsername }: LinkifyProps) {
   if (!mentionable || mentionable.size === 0 || !text.includes("@")) return <>{text}</>;
   return (
     <>
@@ -33,7 +34,46 @@ function Plain({ text, mentionable, meUsername }: LinkifyProps) {
   );
 }
 
-/** Texte d'un message : les adresses web deviennent des liens (http et https seulement), les @mentions sont mises en valeur */
+/** Mise en forme (*gras*, _italique_, ~barré~, `code`) puis @mentions, sur un texte sans adresse web */
+function Plain({ text, mentionable, meUsername }: LinkifyProps) {
+  const inner = { mentionable, meUsername };
+  return (
+    <>
+      {splitFormatting(text).map((token, index) => {
+        switch (token.kind) {
+          case "bold":
+            return (
+              <strong key={index}>
+                <Plain text={token.text} {...inner} />
+              </strong>
+            );
+          case "italic":
+            return (
+              <em key={index}>
+                <Plain text={token.text} {...inner} />
+              </em>
+            );
+          case "strike":
+            return (
+              <s key={index}>
+                <Plain text={token.text} {...inner} />
+              </s>
+            );
+          case "code":
+            return (
+              <code key={index} className="rounded bg-black/10 px-1 font-mono text-[0.9em]">
+                {token.text}
+              </code>
+            );
+          default:
+            return <Mentions key={index} text={token.text} {...inner} />;
+        }
+      })}
+    </>
+  );
+}
+
+/** Texte d'un message : les adresses web deviennent des liens (http et https seulement), le texte est mis en forme et les @mentions sont mises en valeur */
 export default function Linkify({ text, mentionable, meUsername }: LinkifyProps) {
   return (
     <>

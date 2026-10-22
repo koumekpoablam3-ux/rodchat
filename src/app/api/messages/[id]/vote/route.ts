@@ -67,6 +67,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           url: `/chat/${message.conversationId}`,
           tag: `vote:${params.id}:${userId}`,
           renotify: false,
+          hide: { title: "Rodchat", body: "Nouveau vote à ton sondage" },
         });
       })(),
     );

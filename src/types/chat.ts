@@ -154,6 +154,8 @@ export type ConversationSummary = {
   archivedAt: string | null;
   mutedUntil: string | null;
   unreadCount: number;
+  /** Marquée « non lue » par moi (un point, même sans message non lu) */
+  markedUnread: boolean;
   lastMessage: {
     content: string | null;
     type: MessageType;

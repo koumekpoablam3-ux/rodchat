@@ -6,6 +6,7 @@ import StatusProvider from "@/components/status/StatusProvider";
 import AnnouncementBanner from "./AnnouncementBanner";
 import AppBadge from "./AppBadge";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
+import KeyboardShortcuts from "./KeyboardShortcuts";
 import NewChatDialog from "./NewChatDialog";
 import NotificationPrompt from "./NotificationPrompt";
 import Sidebar from "./Sidebar";
@@ -27,6 +28,7 @@ export default function ChatShell({ children }: { children: React.ReactNode }) {
         <AnnouncementBanner />
         <NotificationPrompt />
         <AppBadge />
+        <KeyboardShortcuts />
       </div>
       </StatusProvider>
     </CallProvider>

@@ -139,6 +139,7 @@ async function notifyRecipients(userIds: string[], message: MessageWithRelations
             : body,
     url: `/chat/${message.conversationId}`,
     tag: kind === "mention" ? `${message.conversationId}:mention` : message.conversationId,
+    hide: { title: "Rodchat", body: kind === "mention" ? "Tu as été mentionné" : "Nouveau message" },
   });
 }
 

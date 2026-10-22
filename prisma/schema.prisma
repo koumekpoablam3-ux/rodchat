@@ -68,6 +68,7 @@ model User {
   theme             String             @default("auto") // auto | light | dark
   readReceipts      Boolean            @default(true) // envoyer mes accusés de lecture
   lastSeenVisible   Boolean            @default(true) // montrer ma dernière connexion
+  pushPreview       Boolean            @default(true) // montrer le nom et le texte dans les notifications
   // Incrémenté pour déconnecter tous les appareils (changement de mot de passe, « déconnecter les autres »)
   sessionVersion    Int                @default(0)
   // Numéro de téléphone (format international, ex. +2250712345678). Saisi à l'inscription, jamais montré aux autres.
@@ -128,6 +129,8 @@ model Participant {
   // Réglages propres à chaque personne
   pinnedAt       DateTime?
   archivedAt     DateTime?
+  // « Marquer comme non lu » : un point sur la discussion, sans message non lu, jusqu'à ce qu'on l'ouvre
+  markedUnread   Boolean         @default(false)
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

@@ -23,6 +23,7 @@ import { useCall } from "@/components/call/CallProvider";
 import { formatDayLabel, formatLastSeen } from "@/lib/format";
 import { DELETE_FOR_ALL_WINDOW_MS, EDIT_WINDOW_MS, disappearingLabel } from "@/lib/limits";
 import { messageStatus } from "@/lib/message-status";
+import BubbleRow, { type BubbleActions } from "./BubbleRow";
 import type { ChatMessage } from "@/types/chat";
 import Avatar from "./Avatar";
 import CallLogRow from "./CallLogRow";
@@ -73,6 +74,7 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     loadAround,
     retryMessage,
     discardMessage,
+    updateConversationSettings,
     markRead,
     deleteMessage,
     reactToMessage,
@@ -209,6 +211,15 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     };
   }, [conversationId, focusMessageId, setActiveConversation, loadLatest, loadAround]);
 
+  // Ouvrir une discussion marquée « non lue » retire la marque (pas quand on la marque pendant qu'elle est ouverte)
+  const flaggedRef = useRef(false);
+  flaggedRef.current = conversation?.markedUnread ?? false;
+  useEffect(() => {
+    if (flaggedRef.current && document.visibilityState === "visible") {
+      void updateConversationSettings(conversationId, { markedUnread: false });
+    }
+  }, [conversationId, updateConversationSettings]);
+
   // Messages lus dès qu'ils sont à l'écran
   useEffect(() => {
     if (unread > 0 && document.visibilityState === "visible") markRead(conversationId);
@@ -301,6 +312,31 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     return result;
   }, [messages, unreadAnchor, conversationId]);
 
+  // « @pseudo » des membres du groupe : mis en valeur dans les messages. Mémorisé : un nouvel ensemble à chaque rendu
+  // forcerait à refaire toutes les bulles.
+  const participants = conversation?.participants;
+  const isGroupConversation = conversation?.isGroup ?? false;
+  const mentionable = useMemo(
+    () => (isGroupConversation && participants ? new Set(participants.map((p) => p.username.toLowerCase())) : undefined),
+    [isGroupConversation, participants],
+  );
+
+  // Actions des bulles : une seule référence stable qui appelle toujours la dernière version des fonctions
+  const latestActions = useRef<BubbleActions | null>(null);
+  const bubbleActions = useMemo<BubbleActions>(
+    () => ({
+      retry: (clientId) => latestActions.current?.retry(clientId),
+      discard: (clientId) => latestActions.current?.discard(clientId),
+      openMenu: (messageId) => latestActions.current?.openMenu(messageId),
+      toggleSelect: (messageId) => latestActions.current?.toggleSelect(messageId),
+      goTo: (messageId) => latestActions.current?.goTo(messageId),
+      vote: (messageId, optionIds) => latestActions.current?.vote(messageId, optionIds) ?? Promise.resolve(null),
+      swipeReply: (messageId) => latestActions.current?.swipeReply(messageId),
+      react: (messageId, emoji) => latestActions.current?.react(messageId, emoji),
+    }),
+    [],
+  );
+
   if (!conversation) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
@@ -319,10 +355,20 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const nameOf = (userId: string) =>
     conversation.participants.find((p) => p.id === userId)?.displayName ?? "Quelqu'un";
   const online = other ? onlineIds.has(other.id) : false;
-  // « @pseudo » des membres du groupe : mis en valeur dans les messages
-  const mentionable = conversation.isGroup
-    ? new Set(conversation.participants.map((p) => p.username.toLowerCase()))
-    : undefined;
+  const meUsername = me.username.toLowerCase();
+  latestActions.current = {
+    retry: (clientId) => retryMessage(conversationId, clientId),
+    discard: (clientId) => discardMessage(conversationId, clientId),
+    openMenu: (messageId) => setMenuId(messageId),
+    toggleSelect: toggleSelected,
+    goTo: (messageId) => void goToMessage(messageId),
+    vote: (messageId, optionIds) => votePoll(messageId, optionIds),
+    swipeReply: (messageId) => {
+      setEditingId(null);
+      setReplyToId(messageId);
+    },
+    react: (messageId, emoji) => void react(messageId, emoji),
+  };
 
   // Messages qui me citent, à partir du premier non lu : le bouton « @ » y mène un par un
   const anchorIndex =
@@ -746,14 +792,13 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
               return <SystemRow key={item.key} message={item.message} />;
             }
             const { message } = item;
-            const clientId = message.clientId;
             return (
-              <MessageBubble
+              <BubbleRow
                 key={item.key}
                 message={message}
                 meId={me.id}
+                meUsername={meUsername}
                 mentionable={mentionable}
-                meUsername={me.username.toLowerCase()}
                 mine={message.senderId === me.id}
                 showSender={conversation.isGroup && message.senderId !== me.id && item.showSender}
                 senderName={message.sender?.displayName ?? nameOf(message.senderId)}
@@ -761,23 +806,10 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
                 status={messageStatus(message)}
                 starred={starredIds.has(message.id)}
                 highlighted={highlightId === message.id}
-                onRetry={clientId ? () => retryMessage(conversationId, clientId) : undefined}
-                onDiscard={clientId ? () => discardMessage(conversationId, clientId) : undefined}
-                onOpenMenu={selecting ? undefined : () => setMenuId(message.id)}
-                selectionMode={selecting}
+                selecting={selecting}
                 selected={selectedIds.has(message.id)}
-                onToggleSelect={() => toggleSelected(message.id)}
-                onReplyClick={(id) => void goToMessage(id)}
-                onVote={(optionIds) => votePoll(message.id, optionIds)}
-                onSwipeReply={
-                  selecting || conversation.blockedByMe
-                    ? undefined
-                    : () => {
-                        setEditingId(null);
-                        setReplyToId(message.id);
-                      }
-                }
-                onReact={(emoji) => void react(message.id, emoji)}
+                canReply={!selecting && !conversation.blockedByMe}
+                actions={bubbleActions}
               />
             );
           })}

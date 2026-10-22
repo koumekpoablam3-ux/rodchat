@@ -12,6 +12,11 @@ export type PushPayload = {
   renotify?: boolean;
   /** Affiche la notification même si l'application est au premier plan (bouton « Envoyer un test ») */
   force?: boolean;
+  /**
+   * Version sans contenu (« Nouveau message »), envoyée à la place aux personnes qui ont désactivé l'aperçu.
+   * À renseigner dès que le titre ou le texte révèle le nom de quelqu'un ou le contenu d'un message.
+   */
+  hide?: { title: string; body: string };
 };
 
 let warned = false;
@@ -79,12 +84,23 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
     where: { userId: { in: userIds } },
   });
 
+  // Les personnes qui ont désactivé l'aperçu reçoivent la version sans contenu
+  const { hide, ...visible } = payload;
+  let noPreview = new Set<string>();
+  if (hide) {
+    const rows = await prisma.user.findMany({
+      where: { id: { in: userIds }, pushPreview: false },
+      select: { id: true },
+    });
+    noPreview = new Set(rows.map((row) => row.id));
+  }
+
   await Promise.all(
     subscriptions.map(async (sub) => {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify(payload),
+          JSON.stringify(hide && noPreview.has(sub.userId) ? { ...visible, ...hide } : visible),
           { urgency: "high", TTL: 60 * 60 * 24 },
         );
         result.sent += 1;
