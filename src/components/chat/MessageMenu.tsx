@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckSquare, Copy, Flag, Forward, Info, Pencil, Pin, PinOff, Reply, Share2, Star, Trash2 } from "lucide-react";
+import { CheckSquare, Copy, Flag, Forward, Info, MessageCircle, Pencil, Pin, PinOff, Reply, Share2, Star, Trash2 } from "lucide-react";
 import { REACTION_EMOJIS } from "@/lib/limits";
 import type { ChatMessage } from "@/types/chat";
 
@@ -19,6 +19,8 @@ type MessageMenuProps = {
   onClose: () => void;
   onReact: (emoji: string) => void;
   onReply: () => void;
+  /** Dans un groupe : ouvre la discussion privée avec l'auteur du message */
+  onReplyPrivately?: () => void;
   onCopy: () => void;
   onShare: () => void;
   onToggleStar: () => void;
@@ -49,7 +51,8 @@ export default function MessageMenu(props: MessageMenuProps) {
   }, [onClose]);
 
   const deleted = message.deletedAt !== null;
-  const hasText = message.type === "TEXT" && !!message.content;
+  // Du texte à copier : un message, ou la légende d'une photo, d'une vidéo ou d'un document
+  const hasText = ["TEXT", "IMAGE", "VIDEO", "FILE"].includes(message.type) && !!message.content?.trim();
   const canForward = !deleted && ["TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE"].includes(message.type);
 
   return (
@@ -90,6 +93,12 @@ export default function MessageMenu(props: MessageMenuProps) {
                 <button type="button" className={item} onClick={props.onReply}>
                   <Reply size={19} aria-hidden="true" />
                   Répondre
+                </button>
+              ) : null}
+              {!deleted && props.onReplyPrivately ? (
+                <button type="button" className={item} onClick={props.onReplyPrivately}>
+                  <MessageCircle size={19} aria-hidden="true" />
+                  Répondre en privé
                 </button>
               ) : null}
               {hasText ? (

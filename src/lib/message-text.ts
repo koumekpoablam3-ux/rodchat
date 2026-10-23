@@ -7,11 +7,11 @@ export function describeMessage(type: MessageType, content: string | null, fileN
     case "SYSTEM":
       return content ?? "";
     case "IMAGE":
-      return "Photo";
+      return content ? `📷 ${content}` : "Photo";
     case "AUDIO":
       return "Message vocal";
     case "VIDEO":
-      return "Vidéo";
+      return content ? `🎥 ${content}` : "Vidéo";
     case "FILE":
       return fileName ?? "Document";
     case "POLL":

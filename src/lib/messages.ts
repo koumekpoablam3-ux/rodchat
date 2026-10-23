@@ -6,6 +6,7 @@ import { extractMentions } from "./mentions";
 import { prisma } from "./prisma";
 import { sendPushToUsers } from "./push";
 import { getRealtime } from "./realtime";
+import { stripFormatting } from "./formatting";
 import type { MessageType } from "../types/chat";
 
 // Ce qu'on lit du message cité dans une réponse
@@ -100,13 +101,13 @@ export type PostMessageInput = {
 function pushBody(message: MessageWithRelations) {
   switch (message.type) {
     case "TEXT":
-      return (message.content ?? "").slice(0, 140);
+      return stripFormatting(message.content ?? "").slice(0, 140);
     case "IMAGE":
-      return "Photo";
+      return message.content ? `📷 ${stripFormatting(message.content).slice(0, 140)}` : "Photo";
     case "AUDIO":
       return "Message vocal";
     case "VIDEO":
-      return "Vidéo";
+      return message.content ? `🎥 ${stripFormatting(message.content).slice(0, 140)}` : "Vidéo";
     case "FILE":
       return message.attachment ? `Document : ${message.attachment.fileName}` : "Document";
     case "POLL":

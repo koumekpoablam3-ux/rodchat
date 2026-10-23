@@ -297,6 +297,11 @@ Vercel exécute des fonctions courtes, sans mémoire, et ne peut pas garder de W
 - *Glisser-déposer* : lâcher des fichiers n'importe où dans la fenêtre d'une discussion les envoie (10 au plus à la fois, mêmes limites de taille que le bouton trombone).
 - *Raccourcis clavier* : `Ctrl/⌘ + K` cherche, `Alt + ↑/↓` change de discussion. La liste est dans *Paramètres → Raccourcis clavier*.
 - *Personnes bloquées* : *Paramètres → Personnes bloquées* liste tout le monde, avec un bouton « Débloquer ».
+- *Légendes* : choisir, coller ou déposer une photo, une vidéo ou un document ouvre un aperçu avec un champ « Ajouter une légende… » (500 caractères, Entrée envoie). La légende s'affiche sous le fichier avec la mise en forme et les liens, est reprise par les transferts, les notifications (« 📷 légende »), la liste des discussions et la recherche, et se copie depuis le menu du message. Avec plusieurs fichiers, elle accompagne le premier. Elle est transmise dans l'en-tête `X-Caption` de la requête d'envoi (`/api/conversations/[id]/attachments`). Pas de légende pour les vocaux.
+- *Répondre en privé* : dans un groupe, menu d'un message → « Répondre en privé » ouvre la discussion privée avec son auteur.
+- *Taille du texte* : *Paramètres → Taille du texte* (Normale, Grande, Très grande). Tout est dimensionné en `rem` : la taille de base de la page (`data-textsize` sur `<html>`, lue dans un cookie côté serveur, donc sans clignotement) agrandit textes, boutons et espacements ensemble.
+- *Inviter des amis* : menu ⋮ → « Inviter des amis » ouvre le menu de partage du système (WhatsApp, SMS, e-mail…) avec l'adresse de l'application, ou copie le lien si le navigateur ne partage pas.
+- Les aperçus d'une ligne (liste des discussions, notifications) n'affichent plus les marques de mise en forme (`*gras*` devient gras sans les étoiles).
 - *Marquer comme non lue* : appui long sur une discussion de la liste (ou menu ⋮) → « Marquer comme non lue ». Un point apparaît, compté dans le filtre « Non lues » et dans la pastille de l'icône ; il disparaît quand on ouvre la discussion (ou « Marquer comme lue »). Réglage personnel, synchronisé entre appareils.
 - *Aperçu des notifications* : *Paramètres → Notifications → Afficher le contenu*. Désactivé, la notification dit seulement « Nouveau message », sans nom ni texte.
 

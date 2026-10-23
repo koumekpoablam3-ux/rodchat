@@ -32,9 +32,9 @@ function pinnedPreview(message: { type: string; content: string | null; attachme
     case "TEXT":
       return (message.content ?? "").slice(0, 100);
     case "IMAGE":
-      return "Photo";
+      return message.content ? `📷 ${message.content.slice(0, 100)}` : "Photo";
     case "VIDEO":
-      return "Vidéo";
+      return message.content ? `🎥 ${message.content.slice(0, 100)}` : "Vidéo";
     case "AUDIO":
       return "Message vocal";
     case "FILE":

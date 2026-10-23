@@ -14,6 +14,7 @@ import PaletteSection from "./PaletteSection";
 import PhoneSection from "./PhoneSection";
 import PushTest from "./PushTest";
 import ShortcutsSection from "./ShortcutsSection";
+import TextSizeSection from "./TextSizeSection";
 
 type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean; pushPreview: boolean };
 
@@ -213,6 +214,8 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
               <PhoneSection />
 
               <PaletteSection />
+
+              <TextSizeSection />
 
               <DataSaverSection />
 

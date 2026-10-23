@@ -84,3 +84,10 @@ export function isEmojiOnly(text: string | null | undefined) {
   const value = (text ?? "").trim();
   return value.length > 0 && value.length <= 40 && EMOJI_ONLY.test(value);
 }
+
+/** Le texte sans les marques de mise en forme (*gras*, _italique_…), pour les aperçus d'une ligne : liste, notification */
+export function stripFormatting(text: string): string {
+  return splitFormatting(text)
+    .map((token) => (token.kind === "text" || token.kind === "code" ? token.text : stripFormatting(token.text)))
+    .join("");
+}

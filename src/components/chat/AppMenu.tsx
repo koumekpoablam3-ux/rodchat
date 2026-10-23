@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, Download, EllipsisVertical, LogOut, Settings, ShieldCheck, Star, UserRound } from "lucide-react";
+import { Bell, BellOff, Download, EllipsisVertical, LogOut, Settings, Share2, ShieldCheck, Star, UserRound } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { unbindPushSubscription, usePush } from "@/hooks/usePush";
 import { getSocket } from "@/lib/socket";
@@ -26,6 +26,7 @@ export default function AppMenu() {
   const [starredOpen, setStarredOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPending, setAdminPending] = useState(0);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Le lien « Espace admin » n'apparaît que pour les administrateurs
   useEffect(() => {
@@ -150,6 +151,33 @@ export default function AppMenu() {
           >
             <Settings size={18} aria-hidden="true" />
             Paramètres
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => {
+              const url = window.location.origin;
+              if (typeof navigator.share === "function") {
+                setOpen(false);
+                // Menu de partage du téléphone ou de l'ordinateur (WhatsApp, SMS, e-mail…) ; annulé = rien à faire
+                void navigator.share({ title: "Rodchat", text: "Rejoins-moi sur Rodchat :", url }).catch(() => {});
+              } else {
+                void navigator.clipboard
+                  .writeText(`Rejoins-moi sur Rodchat : ${url}`)
+                  .then(() => {
+                    setInviteCopied(true);
+                    setTimeout(() => {
+                      setInviteCopied(false);
+                      setOpen(false);
+                    }, 1400);
+                  })
+                  .catch(() => setOpen(false));
+              }
+            }}
+          >
+            <Share2 size={18} aria-hidden="true" />
+            {inviteCopied ? "Lien copié ✓" : "Inviter des amis"}
           </button>
           <div className="my-1 border-t border-line" />
 

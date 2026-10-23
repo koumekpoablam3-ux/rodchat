@@ -187,6 +187,24 @@ export default function MessageBubble({
     </>
   );
 
+  // Légende d'une photo, d'une vidéo ou d'un document : affichée sous le fichier, l'heure à sa droite
+  const caption =
+    (message.type === "IMAGE" || message.type === "VIDEO" || message.type === "FILE") && !isDeleted
+      ? message.content?.trim() || null
+      : null;
+  const captionBlock = caption ? (
+    <p
+      className={`whitespace-pre-wrap break-words leading-snug ${
+        message.type === "FILE" ? "pt-1" : "px-2 pb-1 pt-1.5"
+      } ${isEmojiOnly(caption) ? "text-2xl" : ""}`}
+    >
+      <Linkify text={caption} mentionable={mentionable} meUsername={meUsername} />
+      <span className={`float-right ml-3 mt-2 inline-flex items-center gap-1 text-[11px] leading-none ${metaTone}`}>
+        {meta}
+      </span>
+    </p>
+  ) : null;
+
   return (
     <div
       id={`msg-${message.id}`}
@@ -354,9 +372,12 @@ export default function MessageBubble({
                 />
               </button>
             ) : null}
-            <span className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-[11px] leading-none text-white">
-              {meta}
-            </span>
+            {caption ? null : (
+              <span className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-[11px] leading-none text-white">
+                {meta}
+              </span>
+            )}
+            {captionBlock}
           </div>
         ) : null}
 
@@ -388,9 +409,11 @@ export default function MessageBubble({
                 style={{ borderRadius: radius - 4 }}
               />
             ) : null}
-            <p className={`px-2 pb-1 pt-1.5 text-[11px] leading-none ${metaTone} flex items-center justify-end gap-1`}>
-              {meta}
-            </p>
+            {captionBlock ?? (
+              <p className={`px-2 pb-1 pt-1.5 text-[11px] leading-none ${metaTone} flex items-center justify-end gap-1`}>
+                {meta}
+              </p>
+            )}
           </div>
         ) : null}
 
@@ -437,7 +460,9 @@ export default function MessageBubble({
                 </a>
               ) : null}
             </div>
-            <p className={`flex items-center justify-end gap-1 text-[11px] leading-none ${metaTone}`}>{meta}</p>
+            {captionBlock ?? (
+              <p className={`flex items-center justify-end gap-1 text-[11px] leading-none ${metaTone}`}>{meta}</p>
+            )}
           </>
         ) : null}
 

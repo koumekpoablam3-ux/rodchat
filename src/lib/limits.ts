@@ -10,6 +10,8 @@ export const MAX_VOICE_SECONDS = 10 * 60;
 export const INLINE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export const MAX_MESSAGE_LENGTH = 4000;
+/** Légende d'une photo, d'une vidéo ou d'un document (envoyée dans un en-tête HTTP, donc courte) */
+export const MAX_CAPTION_LENGTH = 500;
 
 // --- Messages ---
 

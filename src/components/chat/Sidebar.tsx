@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AtSign, Archive, ArrowLeft, BellOff, Pin, Search, SquarePen } from "lucide-react";
 import { useLongPress } from "@/hooks/useLongPress";
 import { useMessageSearch } from "@/hooks/useMessageSearch";
+import { stripFormatting } from "@/lib/formatting";
 import { isMuted } from "@/lib/conversation-sort";
 import { formatDuration, formatListDate } from "@/lib/format";
 import type { ConversationSummary } from "@/types/chat";
@@ -27,13 +28,13 @@ function previewBody(last: LastMessage) {
   switch (last.type) {
     case "TEXT":
     case "SYSTEM":
-      return last.content ?? "";
+      return stripFormatting(last.content ?? "");
     case "IMAGE":
-      return "Photo";
+      return last.content ? `📷 ${stripFormatting(last.content)}` : "Photo";
     case "AUDIO":
       return last.attachment?.durationMs ? `Message vocal (${formatDuration(last.attachment.durationMs)})` : "Message vocal";
     case "VIDEO":
-      return "Vidéo";
+      return last.content ? `🎥 ${stripFormatting(last.content)}` : "Vidéo";
     case "FILE":
       return last.attachment?.fileName ?? "Document";
     case "POLL":

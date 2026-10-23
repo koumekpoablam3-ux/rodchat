@@ -11,7 +11,7 @@ import {
 } from "react";
 import { sortConversations } from "@/lib/conversation-sort";
 import { apiRequest, NETWORK_ERROR } from "@/lib/client-api";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
+import { MAX_CAPTION_LENGTH, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
 import { getSocket } from "@/lib/socket";
 import { uid } from "@/lib/utils";
 import type {
@@ -276,6 +276,8 @@ export type AttachmentInput = {
   height?: number | null;
   /** Message auquel ce fichier répond */
   replyTo?: ChatMessage | null;
+  /** Légende (photo, vidéo, document) */
+  caption?: string | null;
 };
 
 /** Envoi d'un fichier avec suivi de la progression (fetch ne sait pas la mesurer) */
@@ -296,6 +298,8 @@ function uploadFile(
     if (input.durationMs) xhr.setRequestHeader("X-Duration-Ms", String(Math.round(input.durationMs)));
     if (input.width) xhr.setRequestHeader("X-Width", String(input.width));
     if (input.height) xhr.setRequestHeader("X-Height", String(input.height));
+    const caption = input.caption?.trim();
+    if (caption) xhr.setRequestHeader("X-Caption", encodeURIComponent(caption.slice(0, MAX_CAPTION_LENGTH)));
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
@@ -886,7 +890,7 @@ export default function ChatProvider({ me: initialMe, initialConversations, chil
       const message: ChatMessage = {
         ...baseLocalMessage(conversationId, clientId),
         type: input.type,
-        content: null,
+        content: input.caption?.trim() ? input.caption.trim().slice(0, MAX_CAPTION_LENGTH) : null,
         replyTo: quoted,
         upload: {
           progress: 0,

@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { background } from "./background";
+import { stripFormatting } from "./formatting";
 import { prisma } from "./prisma";
 
 export type PushPayload = {
@@ -164,13 +165,13 @@ export async function notifyAdmins(payload: PushPayload) {
 export function previewOf(type: string, content: string | null | undefined, max = 80) {
   switch (type) {
     case "TEXT":
-      return (content ?? "").slice(0, max);
+      return stripFormatting(content ?? "").slice(0, max);
     case "IMAGE":
-      return "Photo";
+      return content ? `📷 ${stripFormatting(content).slice(0, max)}` : "Photo";
     case "AUDIO":
       return "Message vocal";
     case "VIDEO":
-      return "Vidéo";
+      return content ? `🎥 ${stripFormatting(content).slice(0, max)}` : "Vidéo";
     case "FILE":
       return "Document";
     case "POLL":

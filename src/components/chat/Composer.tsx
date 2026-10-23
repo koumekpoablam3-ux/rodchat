@@ -6,6 +6,7 @@ import { useVoiceRecorder, type VoiceRecording } from "@/hooks/useVoiceRecorder"
 import { formatDuration } from "@/lib/format";
 import { prepareImage } from "@/lib/image";
 import { MAX_MESSAGE_LENGTH } from "@/lib/limits";
+import AttachmentPreview from "./AttachmentPreview";
 import { mentionAtCaret } from "@/lib/mentions";
 import type { ChatMessage } from "@/types/chat";
 import { useChat } from "./ChatProvider";
@@ -48,6 +49,8 @@ export default function Composer({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
+  // Fichiers choisis, collés ou déposés, en attente de l'aperçu (légende) avant l'envoi
+  const [staged, setStaged] = useState<{ files: File[]; kind?: "IMAGE" | "VIDEO" | "FILE" } | null>(null);
   // Toujours la dernière version de l'envoi (elle dépend de la réponse en cours) pour les écouteurs de la fenêtre
   const uploadRef = useRef<(files: File[]) => Promise<void>>(async () => {});
 
@@ -343,7 +346,7 @@ export default function Composer({
     const files = Array.from(event.clipboardData.files);
     if (files.length === 0) return;
     event.preventDefault();
-    void uploadFiles(files);
+    stageFiles(files);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -391,12 +394,30 @@ export default function Composer({
     const files = Array.from(event.target.files ?? []);
     event.target.value = ""; // permet de choisir deux fois le même fichier
     setMenuOpen(false);
-    await uploadFiles(files, kind);
+    stageFiles(files, kind);
+  }
+
+  /** Ouvre l'aperçu avec la légende ; l'envoi part de là (voir sendStaged) */
+  function stageFiles(files: File[], kind?: "IMAGE" | "VIDEO" | "FILE") {
+    const usable = files.filter((candidate) => candidate.size > 0).slice(0, MAX_FILES_AT_ONCE);
+    if (usable.length === 0) return;
+    setMenuOpen(false);
+    setStaged({ files: usable, kind });
+  }
+
+  async function sendStaged(caption: string) {
+    const current = staged;
+    setStaged(null);
+    if (current) await uploadFiles(current.files, current.kind, caption);
   }
 
   /** Envoie des fichiers (choisis, collés ou déposés). Sans type imposé, il se déduit de chaque fichier. */
-  async function uploadFiles(files: File[], forcedKind?: "IMAGE" | "VIDEO" | "FILE") {
+  async function uploadFiles(files: File[], forcedKind?: "IMAGE" | "VIDEO" | "FILE", caption?: string) {
+    let first = true;
     for (const file of files.filter((candidate) => candidate.size > 0).slice(0, MAX_FILES_AT_ONCE)) {
+      // La légende accompagne le premier fichier
+      const fileCaption = first ? caption || null : null;
+      first = false;
       const kind = forcedKind ?? (file.type.startsWith("image/") ? "IMAGE" : file.type.startsWith("video/") ? "VIDEO" : "FILE");
       let problem: string | null;
       if (kind === "IMAGE") {
@@ -408,9 +429,16 @@ export default function Composer({
           width: image.width,
           height: image.height,
           replyTo,
+          caption: fileCaption,
         });
       } else {
-        problem = await sendAttachment(conversationId, { blob: file, type: kind, fileName: file.name, replyTo });
+        problem = await sendAttachment(conversationId, {
+          blob: file,
+          type: kind,
+          fileName: file.name,
+          replyTo,
+          caption: fileCaption,
+        });
       }
       if (problem) setError(`${file.name} : ${problem}`);
       else {
@@ -432,10 +460,18 @@ export default function Composer({
   }
 
   const hasText = text.trim().length > 0;
-  uploadRef.current = (files) => uploadFiles(files);
+  uploadRef.current = async (files) => stageFiles(files);
 
   return (
     <div className="border-t border-line bg-panel px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 md:px-4">
+      {staged ? (
+        <AttachmentPreview
+          files={staged.files}
+          kind={staged.kind}
+          onCancel={() => setStaged(null)}
+          onSend={(caption) => void sendStaged(caption)}
+        />
+      ) : null}
       {dragging ? (
         <div
           aria-hidden="true"

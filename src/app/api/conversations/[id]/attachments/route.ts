@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { badRequest, forbidden, unauthorized } from "@/lib/api";
 import { matchesImageSignature } from "@/lib/image-signature";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
+import { MAX_CAPTION_LENGTH, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/limits";
 import { background } from "@/lib/background";
 import { maybeAutoCleanup } from "@/lib/storage";
 import { postMessage } from "@/lib/messages";
@@ -86,6 +86,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     /* nom illisible : on garde le nom par défaut */
   }
 
+  // Légende (photo, vidéo, document ; pas pour un vocal)
+  let caption: string | null = null;
+  if (type !== "AUDIO") {
+    try {
+      const raw = decodeURIComponent(req.headers.get("x-caption") ?? "").trim();
+      caption = raw ? raw.slice(0, MAX_CAPTION_LENGTH) : null;
+    } catch {
+      /* légende illisible : le fichier part sans */
+    }
+  }
+
   const clientIdHeader = req.headers.get("x-client-id");
   const clientId = clientIdHeader && clientIdHeader.length <= 64 ? clientIdHeader : undefined;
 
@@ -97,6 +108,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       senderId: userId,
       conversationId,
       type,
+      content: caption,
       clientId,
       replyToId,
       attachment: {

@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowLeft,
@@ -83,7 +84,9 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
     pinMessage,
     votePoll,
     setBlocked,
+    openDirectChat,
   } = useChat();
+  const router = useRouter();
   const { startCall, startGroupCall, joinGroupCall, ongoingGroupCalls, activeGroupConversationId, inCall } = useCall();
 
   const conversation = conversations.find((c) => c.id === conversationId);
@@ -923,6 +926,18 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
             setEditingId(null);
             setReplyToId(menuMessage.id);
           }}
+          onReplyPrivately={
+            conversation.isGroup && !menuIsMine && menuMessage.deletedAt === null && menuMessage.type !== "SYSTEM"
+              ? () => {
+                  const senderId = menuMessage.senderId;
+                  closeMenu();
+                  // Ouvre (ou crée) la discussion privée avec cette personne
+                  openDirectChat(senderId)
+                    .then((id) => router.push(`/chat/${id}`))
+                    .catch(() => setToast("Impossible d'ouvrir la discussion."));
+                }
+              : undefined
+          }
           onCopy={() => void copyText(menuMessage)}
           onShare={() => void shareText(menuMessage)}
           onToggleStar={() => void star(menuMessage)}

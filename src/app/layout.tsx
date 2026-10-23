@@ -7,6 +7,7 @@ import RegisterServiceWorker from "@/components/RegisterServiceWorker";
 import AppLock from "@/components/AppLock";
 import SplashScreen from "@/components/SplashScreen";
 import { PALETTE_COOKIE, parsePalette } from "@/lib/palette";
+import { TEXT_SIZE_COOKIE, parseTextSize } from "@/lib/text-size";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -37,11 +38,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const theme = parseTheme(cookies().get(THEME_COOKIE)?.value);
   const palette = parsePalette(cookies().get(PALETTE_COOKIE)?.value);
+  const textSize = parseTextSize(cookies().get(TEXT_SIZE_COOKIE)?.value);
   return (
     <html
       lang="fr"
       data-theme={theme === "auto" ? undefined : theme}
       data-palette={palette === "aubergine" ? undefined : palette}
+      data-textsize={textSize === "normal" ? undefined : textSize}
       suppressHydrationWarning
     >
       <head>

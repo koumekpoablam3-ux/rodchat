@@ -481,3 +481,11 @@ html[data-locked="1"] body::before {
   z-index: 90;
   background: rgb(var(--bg));
 }
+
+/* Taille du texte (Réglages) : tout est en rem, donc la taille de base de la page agrandit tout ensemble */
+:root[data-textsize="large"] {
+  font-size: 112.5%;
+}
+:root[data-textsize="xlarge"] {
+  font-size: 125%;
+}
