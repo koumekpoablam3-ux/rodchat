@@ -96,15 +96,20 @@ export default function Composer({
   const [mentionIndex, setMentionIndex] = useState(0);
 
   const conversation = conversations.find((c) => c.id === conversationId);
-  const suggestions = useMemo(() => {
+  const suggestions = useMemo((): { id: string; username: string; displayName: string }[] => {
     if (!mention || !conversation?.isGroup) return [];
     const query = mention.query.toLowerCase();
-    return conversation.participants
+    const members = conversation.participants
       .filter(
         (p) =>
           p.id !== me.id && (p.username.toLowerCase().startsWith(query) || p.displayName.toLowerCase().includes(query)),
       )
       .slice(0, 5);
+    // « @tous » : proposé aux administrateurs du groupe
+    const iAmAdmin = conversation.participants.some((p) => p.id === me.id && p.role === "ADMIN");
+    const everyone =
+      iAmAdmin && "tous".startsWith(query) ? [{ id: "__everyone", username: "tous", displayName: "Tous les membres" }] : [];
+    return [...everyone, ...members].slice(0, 5);
   }, [mention, conversation, me.id]);
 
   /** Envoie ma position sous forme de lien de carte (OpenStreetMap). Le navigateur demande l'autorisation. */

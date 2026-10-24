@@ -43,6 +43,8 @@ export type ActiveCall = {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   unstable: boolean;
+  /** Caméra utilisée : « user » (avant, affichée en miroir) ou « environment » (arrière) */
+  facing?: "user" | "environment";
   /** Je partage mon écran */
   sharing?: boolean;
   /** L'autre personne partage son écran (l'image s'affiche en entier, sans être recadrée) */
@@ -471,6 +473,51 @@ export default function CallProvider({ children }: { children: React.ReactNode }
     setCall((prev) => (prev ? { ...prev, camOn: !prev.camOn } : prev));
   }, [setCall]);
 
+  // Caméra avant ↔ arrière (téléphones et tablettes), sans couper l'appel : la nouvelle image remplace l'ancienne
+  // sur le même flux vidéo, aucune renégociation.
+  const flipCamera = useCallback(async () => {
+    const stream = localStreamRef.current;
+    const oldTrack = stream?.getVideoTracks()[0];
+    if (!stream || !oldTrack || screenStreamRef.current || !navigator.mediaDevices?.getUserMedia) return;
+    const current = (oldTrack.getSettings().facingMode as "user" | "environment" | undefined) ?? callRef.current?.facing ?? "user";
+    const next = current === "environment" ? "user" : "environment";
+    const open = (facing: "user" | "environment") =>
+      navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: facing }, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } },
+      });
+
+    let fresh: MediaStream | null = null;
+    let facing: "user" | "environment" = next;
+    try {
+      fresh = await open(next);
+    } catch {
+      // Sur certains Android, deux caméras ne s'ouvrent pas ensemble : on libère l'ancienne puis on réessaie
+      oldTrack.stop();
+      try {
+        fresh = await open(next);
+      } catch {
+        try {
+          fresh = await open(current); // pas d'autre caméra : on retrouve la même
+          facing = current;
+        } catch {
+          return;
+        }
+      }
+    }
+    const track = fresh.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = oldTrack.enabled; // une caméra coupée le reste
+    const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
+    await sender?.replaceTrack(track).catch(() => {});
+    stream.removeTrack(oldTrack);
+    oldTrack.stop();
+    stream.addTrack(track);
+    const refreshed = new MediaStream(stream.getTracks()); // nouvel objet : l'aperçu se recharge
+    localStreamRef.current = refreshed;
+    setCall((prev) => (prev ? { ...prev, localStream: refreshed, facing } : prev));
+  }, [setCall]);
+
   // Partage d'écran : l'image de l'écran remplace celle de la caméra sur le même flux vidéo (aucune renégociation).
   // Seulement en appel vidéo à deux, sur ordinateur (les téléphones ne savent pas partager leur écran).
   const stopShare = useCallback(async () => {
@@ -674,6 +721,13 @@ export default function CallProvider({ children }: { children: React.ReactNode }
           onHangUp={() => hangUp()}
           onToggleMic={toggleMic}
           onToggleCam={toggleCam}
+          canFlip={
+            call.kind === "VIDEO" &&
+            !call.sharing &&
+            typeof window !== "undefined" &&
+            window.matchMedia("(pointer: coarse)").matches
+          }
+          onFlipCamera={() => void flipCamera()}
           canShare={
             call.kind === "VIDEO" && typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getDisplayMedia)
           }

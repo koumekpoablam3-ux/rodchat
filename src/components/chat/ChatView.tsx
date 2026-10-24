@@ -320,7 +320,11 @@ export default function ChatView({ conversationId, focusMessageId }: ChatViewPro
   const participants = conversation?.participants;
   const isGroupConversation = conversation?.isGroup ?? false;
   const mentionable = useMemo(
-    () => (isGroupConversation && participants ? new Set(participants.map((p) => p.username.toLowerCase())) : undefined),
+    // « tous » : la mention d'un administrateur qui s'adresse à tout le groupe
+    () =>
+      isGroupConversation && participants
+        ? new Set([...participants.map((p) => p.username.toLowerCase()), "tous", "all"])
+        : undefined,
     [isGroupConversation, participants],
   );
 

@@ -69,6 +69,10 @@ model User {
   readReceipts      Boolean            @default(true) // envoyer mes accusés de lecture
   lastSeenVisible   Boolean            @default(true) // montrer ma dernière connexion
   pushPreview       Boolean            @default(true) // montrer le nom et le texte dans les notifications
+  quietEnabled      Boolean            @default(false) // heures calmes : aucune notification pendant la plage
+  quietStart        Int                @default(1320) // début, en minutes depuis minuit (22 h)
+  quietEnd          Int                @default(420) // fin, en minutes depuis minuit (7 h)
+  timeZone          String             @default("UTC") // fuseau horaire de la personne (nom IANA)
   // Incrémenté pour déconnecter tous les appareils (changement de mot de passe, « déconnecter les autres »)
   sessionVersion    Int                @default(0)
   // Numéro de téléphone (format international, ex. +2250712345678). Saisi à l'inscription, jamais montré aux autres.

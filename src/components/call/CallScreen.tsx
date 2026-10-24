@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, MonitorOff, MonitorUp, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, MonitorOff, MonitorUp, Phone, PhoneOff, SwitchCamera, Video, VideoOff } from "lucide-react";
 import Avatar from "@/components/chat/Avatar";
 import { formatDuration } from "@/lib/format";
 import type { ActiveCall } from "./CallProvider";
@@ -15,6 +15,9 @@ type CallScreenProps = {
   onHangUp: () => void;
   onToggleMic: () => void;
   onToggleCam: () => void;
+  /** Téléphone ou tablette en appel vidéo : changer de caméra (avant ↔ arrière) */
+  canFlip?: boolean;
+  onFlipCamera?: () => void;
   /** Le navigateur sait partager l'écran (ordinateur, appel vidéo) */
   canShare?: boolean;
   onToggleShare?: () => void;
@@ -41,6 +44,8 @@ export default function CallScreen({
   onHangUp,
   onToggleMic,
   onToggleCam,
+  canFlip = false,
+  onFlipCamera,
   canShare = false,
   onToggleShare,
 }: CallScreenProps) {
@@ -139,7 +144,7 @@ export default function CallScreen({
             playsInline
             muted
             aria-label={`Ta caméra, ${meName}`}
-            className={`h-full w-full -scale-x-100 object-cover ${call.camOn ? "" : "opacity-0"}`}
+            className={`h-full w-full object-cover ${call.facing === "environment" ? "" : "-scale-x-100"} ${call.camOn ? "" : "opacity-0"}`}
           />
           {!call.camOn ? (
             <span className="absolute inset-0 flex items-center justify-center text-white/70">
@@ -178,7 +183,7 @@ export default function CallScreen({
             </div>
           </div>
         ) : (
-          <div className="mx-auto flex max-w-xs items-center justify-center gap-5">
+          <div className="mx-auto flex max-w-sm items-center justify-center gap-4">
             <button
               type="button"
               onClick={onToggleMic}
@@ -197,6 +202,17 @@ export default function CallScreen({
                 className={`${roundButton} ${call.camOn ? "bg-white/15 hover:bg-white/25" : "bg-white text-[#100D18] hover:bg-white/90"}`}
               >
                 {call.camOn ? <Video size={24} /> : <VideoOff size={24} />}
+              </button>
+            ) : null}
+            {canFlip && onFlipCamera && call.camOn && call.phase !== "calling" ? (
+              <button
+                type="button"
+                onClick={onFlipCamera}
+                aria-label="Changer de caméra"
+                title="Changer de caméra"
+                className={`${roundButton} bg-white/15 hover:bg-white/25`}
+              >
+                <SwitchCamera size={24} />
               </button>
             ) : null}
             {canShare && onToggleShare && call.phase !== "calling" ? (

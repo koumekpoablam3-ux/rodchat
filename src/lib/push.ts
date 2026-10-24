@@ -2,6 +2,7 @@ import webpush from "web-push";
 import { background } from "./background";
 import { stripFormatting } from "./formatting";
 import { prisma } from "./prisma";
+import { inQuietHours } from "./quiet-hours";
 
 export type PushPayload = {
   title: string;
@@ -85,19 +86,25 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload) {
     where: { userId: { in: userIds } },
   });
 
-  // Les personnes qui ont désactivé l'aperçu reçoivent la version sans contenu
+  // Réglages personnels : aperçu masqué (version sans contenu) et heures calmes (aucune notification).
+  // Seules les personnes qui ont changé un de ces réglages sont lues : les autres gardent les valeurs par défaut.
   const { hide, ...visible } = payload;
-  let noPreview = new Set<string>();
-  if (hide) {
-    const rows = await prisma.user.findMany({
-      where: { id: { in: userIds }, pushPreview: false },
-      select: { id: true },
-    });
-    noPreview = new Set(rows.map((row) => row.id));
+  const noPreview = new Set<string>();
+  const quiet = new Set<string>();
+  const rows = await prisma.user.findMany({
+    where: { id: { in: userIds }, OR: [{ pushPreview: false }, { quietEnabled: true }] },
+    select: { id: true, pushPreview: true, quietEnabled: true, quietStart: true, quietEnd: true, timeZone: true },
+  });
+  const now = new Date();
+  for (const row of rows) {
+    if (!row.pushPreview) noPreview.add(row.id);
+    // Le test des réglages (force) passe toujours
+    if (!payload.force && inQuietHours(row, now)) quiet.add(row.id);
   }
 
   await Promise.all(
     subscriptions.map(async (sub) => {
+      if (quiet.has(sub.userId)) return;
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },

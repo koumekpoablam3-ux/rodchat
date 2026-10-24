@@ -2,16 +2,31 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { badRequest, unauthorized } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { isValidTimeZone } from "@/lib/quiet-hours";
 import { getSessionUserId } from "@/lib/session";
 import { THEME_COOKIE } from "@/lib/theme";
 
-const settingsSelect = { theme: true, readReceipts: true, lastSeenVisible: true, pushPreview: true } as const;
+const settingsSelect = {
+  theme: true,
+  readReceipts: true,
+  lastSeenVisible: true,
+  pushPreview: true,
+  quietEnabled: true,
+  quietStart: true,
+  quietEnd: true,
+  timeZone: true,
+} as const;
 
 const schema = z.object({
   theme: z.enum(["auto", "light", "dark"]).optional(),
   readReceipts: z.boolean().optional(),
   lastSeenVisible: z.boolean().optional(),
   pushPreview: z.boolean().optional(),
+  // Heures calmes : minutes depuis minuit, et fuseau horaire (nom IANA) pour lire l'heure locale
+  quietEnabled: z.boolean().optional(),
+  quietStart: z.number().int().min(0).max(1439).optional(),
+  quietEnd: z.number().int().min(0).max(1439).optional(),
+  timeZone: z.string().max(64).refine(isValidTimeZone, "Fuseau horaire inconnu.").optional(),
 });
 
 export async function GET() {

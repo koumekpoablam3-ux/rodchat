@@ -218,6 +218,22 @@ export async function postMessage(input: PostMessageInput): Promise<MessageWithR
         select: { userId: true },
       });
       mentionedIds = cited.map((c) => c.userId);
+
+      // « @tous » (ou « @all ») : prévient tous les membres, même ceux qui ont mis le groupe en sourdine.
+      // Réservé aux administrateurs du groupe, pour éviter les abus.
+      if (handles.includes("tous") || handles.includes("all")) {
+        const admin = await prisma.participant.findFirst({
+          where: { conversationId, userId: senderId, role: "ADMIN", conversation: { isGroup: true } },
+          select: { id: true },
+        });
+        if (admin) {
+          const everyone = await prisma.participant.findMany({
+            where: { conversationId, userId: { not: senderId } },
+            select: { userId: true },
+          });
+          mentionedIds = Array.from(new Set([...mentionedIds, ...everyone.map((member) => member.userId)]));
+        }
+      }
     }
   }
 

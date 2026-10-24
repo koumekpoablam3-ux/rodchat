@@ -13,10 +13,20 @@ import DevicesSection from "./DevicesSection";
 import PaletteSection from "./PaletteSection";
 import PhoneSection from "./PhoneSection";
 import PushTest from "./PushTest";
+import QuietHours from "./QuietHours";
 import ShortcutsSection from "./ShortcutsSection";
 import TextSizeSection from "./TextSizeSection";
 
-type Settings = { theme: Theme; readReceipts: boolean; lastSeenVisible: boolean; pushPreview: boolean };
+type Settings = {
+  theme: Theme;
+  readReceipts: boolean;
+  lastSeenVisible: boolean;
+  pushPreview: boolean;
+  quietEnabled: boolean;
+  quietStart: number;
+  quietEnd: number;
+  timeZone: string;
+};
 
 const THEMES: { id: Theme; label: string }[] = [
   { id: "auto", label: "Automatique" },
@@ -203,6 +213,12 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
                       hint="Quand c'est désactivé, une notification dit seulement « Nouveau message », sans le nom ni le texte (utile si ton écran est visible par d'autres)."
                       checked={settings.pushPreview}
                       onChange={(value) => void change({ pushPreview: value })}
+                    />
+                    <QuietHours
+                      enabled={settings.quietEnabled}
+                      start={settings.quietStart}
+                      end={settings.quietEnd}
+                      onChange={(patch) => void change(patch)}
                     />
                     <PushTest />
                   </>
