@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { usePush } from "@/hooks/usePush";
+import { replayIntro } from "@/lib/intro";
 import { apiRequest } from "@/lib/client-api";
 import type { Theme } from "@/lib/theme";
 import AccountSecuritySection from "./AccountSecuritySection";
@@ -236,6 +237,22 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
               <DataSaverSection />
 
               <ShortcutsSection />
+
+              <section>
+                <h3 className="mb-1 font-display text-sm font-semibold uppercase tracking-wide text-muted">
+                  Découvrir Rodchat
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    replayIntro();
+                  }}
+                  className="rounded-full border border-line px-4 py-1.5 text-sm font-medium"
+                >
+                  Revoir l&apos;introduction
+                </button>
+              </section>
 
               <DevicesSection />
 

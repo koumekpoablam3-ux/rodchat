@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AtSign, Archive, ArrowLeft, BellOff, Pin, Search, SquarePen } from "lucide-react";
 import { useLongPress } from "@/hooks/useLongPress";
 import { useMessageSearch } from "@/hooks/useMessageSearch";
+import { shareInvite } from "@/lib/share-invite";
 import { stripFormatting } from "@/lib/formatting";
 import { isMuted } from "@/lib/conversation-sort";
 import { formatDuration, formatListDate } from "@/lib/format";
@@ -163,6 +164,7 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
   const { me, conversations, onlineIds, typingByConv, setNewChatOpen, updateConversationSettings, markRead } = useChat();
   const [tab, setTab] = useState<SidebarTab>("chats");
   const [filter, setFilter] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
   const [chip, setChip] = useState<"all" | "unread" | "groups">("all");
   const [showArchived, setShowArchived] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -316,15 +318,36 @@ export default function Sidebar({ visibleOnMobile }: { visibleOnMobile: boolean 
 
         {conversations.length === 0 ? (
           <div className="px-6 py-10 text-center">
-            <p className="font-display text-lg font-semibold">Aucune discussion pour l&apos;instant</p>
+            {/* Deux bulles vides, en attente d'être remplies */}
+            <div aria-hidden="true" className="mx-auto mb-5 flex w-44 flex-col gap-2">
+              <span className="h-9 w-28 rounded-2xl rounded-bl-md border-2 border-dashed border-line" />
+              <span className="ml-auto h-9 w-24 rounded-2xl rounded-br-md border-2 border-dashed border-line" />
+            </div>
+            <p className="font-display text-lg font-semibold">Ta liste est vide pour l&apos;instant</p>
             <p className="mt-1 text-sm text-muted">Les personnes déjà inscrites sont à un clic : choisis-en une pour lui écrire.</p>
-            <button
-              type="button"
-              onClick={() => setNewChatOpen(true)}
-              className="mt-4 h-11 rounded-xl bg-brand px-5 text-sm font-semibold text-brand-ink"
-            >
-              Nouvelle discussion
-            </button>
+            <div className="mt-5 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNewChatOpen(true)}
+                className="h-11 rounded-full bg-brand px-6 text-sm font-semibold text-brand-ink"
+              >
+                Nouvelle discussion
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void shareInvite().then((result) => {
+                    if (result === "copied") {
+                      setInviteNote("Lien copié");
+                      setTimeout(() => setInviteNote(""), 2000);
+                    }
+                  })
+                }
+                className="h-10 rounded-full px-4 text-sm font-medium text-muted"
+              >
+                {inviteNote || "Inviter des amis"}
+              </button>
+            </div>
           </div>
         ) : visible.length === 0 && !q ? (
           <p className="px-6 py-10 text-center text-sm text-muted">

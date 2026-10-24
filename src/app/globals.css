@@ -489,3 +489,401 @@ html[data-locked="1"] body::before {
 :root[data-textsize="xlarge"] {
   font-size: 125%;
 }
+
+/* ---------- Introduction : miniatures animées de l'interface (une seule animation par étape) ----------
+   Les états de départ sont écrits comme l'état FINAL : sans animation (réduire les animations), la scène est complète. */
+.intro-scene {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 16.5rem;
+  padding: 1rem;
+  overflow: hidden;
+  color: #fff;
+  background: radial-gradient(circle at 50% 25%, #3d2a63 0%, #2b1d44 62%, #1d1330 100%);
+}
+
+/* 1. Un message qui attend le réseau, puis part */
+.intro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  background: rgb(255 255 255 / 0.14);
+  opacity: 0;
+  animation: intro-chip 3.4s ease both;
+}
+@keyframes intro-chip {
+  0%,
+  38% {
+    opacity: 1;
+    transform: none;
+  }
+  54%,
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.intro-bubble {
+  max-width: 15.5rem;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+.intro-bubble-in {
+  align-self: flex-start;
+  background: #fff;
+  color: #1b1828;
+  border-radius: 18px 18px 18px 5px;
+}
+.intro-bubble-out {
+  align-self: flex-end;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: #f5b335;
+  color: #2b1d44;
+  border-radius: 18px 18px 5px 18px;
+  animation: intro-pop 0.45s cubic-bezier(0.3, 1.3, 0.5, 1) 0.2s both;
+}
+@keyframes intro-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.intro-status {
+  position: relative;
+  width: 1.1rem;
+  height: 1rem;
+  flex: none;
+}
+.intro-st {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.intro-st-clock {
+  opacity: 0;
+  animation: intro-st-clock 3.4s linear both;
+}
+.intro-st-one {
+  opacity: 0;
+  animation: intro-st-one 3.4s linear both;
+}
+.intro-st-two {
+  opacity: 1;
+  animation: intro-st-two 3.4s linear both;
+}
+@keyframes intro-st-clock {
+  0%,
+  36% {
+    opacity: 1;
+  }
+  40%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes intro-st-one {
+  0%,
+  36% {
+    opacity: 0;
+  }
+  40%,
+  66% {
+    opacity: 1;
+  }
+  70%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes intro-st-two {
+  0%,
+  66% {
+    opacity: 0;
+  }
+  70%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 2. Un appel qui sonne */
+.intro-avatar {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 9999px;
+  background: #f5b335;
+  color: #2b1d44;
+  font-family: var(--font-display, "Bricolage Grotesque Variable", system-ui, sans-serif);
+  font-size: 2rem;
+  font-weight: 800;
+}
+.intro-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgb(245 179 53 / 0.6);
+  opacity: 0;
+  animation: intro-ring 2.2s ease-out infinite;
+}
+.intro-ring-2 {
+  animation-delay: 1.1s;
+}
+@keyframes intro-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+.intro-call-btn {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.16);
+}
+.intro-call-btn-end {
+  background: #dc2626;
+}
+.intro-call-btn-tap {
+  animation: intro-tap 0.7s ease 1.2s both;
+}
+@keyframes intro-tap {
+  0%,
+  100% {
+    transform: none;
+  }
+  45% {
+    transform: scale(0.86);
+    background: #fff;
+    color: #2b1d44;
+  }
+}
+
+/* 3. Une notification et la pastille de l'icône */
+.intro-notif {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: min(19rem, 100%);
+  padding: 0.7rem 0.85rem;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.96);
+  color: #1b1828;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  animation: intro-notif 0.6s cubic-bezier(0.3, 1.2, 0.5, 1) 0.15s both;
+}
+@keyframes intro-notif {
+  from {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.intro-appicon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.75rem;
+  height: 3.75rem;
+  border-radius: 1rem;
+  background: #1d1330;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.intro-badge {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.5rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.3rem;
+  border-radius: 9999px;
+  background: #e11d48;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  animation: intro-badge 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) 0.95s both;
+}
+@keyframes intro-badge {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* 4. Des réglages que la personne contrôle */
+.intro-panel {
+  width: min(19rem, 100%);
+  padding: 0.3rem 0.9rem;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.1);
+}
+.intro-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  font-size: 0.9375rem;
+}
+.intro-row + .intro-row {
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+}
+.intro-switch {
+  position: relative;
+  flex: none;
+  width: 2.6rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.25);
+}
+.intro-switch::after {
+  content: "";
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 9999px;
+  background: #fff;
+}
+.intro-switch[data-on="true"] {
+  background: #f5b335;
+}
+.intro-switch[data-on="true"]::after {
+  transform: translateX(1.1rem);
+}
+.intro-switch[data-flip="on"] {
+  animation: intro-track-on 0.35s ease var(--d, 0s) both;
+}
+.intro-switch[data-flip="on"]::after {
+  animation: intro-knob-on 0.35s ease var(--d, 0s) both;
+}
+.intro-switch[data-flip="off"] {
+  animation: intro-track-off 0.35s ease var(--d, 0s) both;
+}
+.intro-switch[data-flip="off"]::after {
+  animation: intro-knob-off 0.35s ease var(--d, 0s) both;
+}
+@keyframes intro-track-on {
+  from {
+    background: rgb(255 255 255 / 0.25);
+  }
+  to {
+    background: #f5b335;
+  }
+}
+@keyframes intro-track-off {
+  from {
+    background: #f5b335;
+  }
+  to {
+    background: rgb(255 255 255 / 0.25);
+  }
+}
+@keyframes intro-knob-on {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(1.1rem);
+  }
+}
+@keyframes intro-knob-off {
+  from {
+    transform: translateX(1.1rem);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-scene *,
+  .intro-scene *::after {
+    animation: none !important;
+  }
+  .intro-ring {
+    display: none;
+  }
+}
+
+/* ---------- Démarrage : ligne de présentation, et version courte pour ceux qui reviennent ---------- */
+.splash-tag {
+  position: relative;
+  margin: -0.35rem 0 0;
+  font-size: 1rem;
+  color: rgb(255 255 255 / 0.72);
+  opacity: 0;
+  animation: splash-word 0.5s ease-out 1.35s forwards;
+}
+/* Déjà ouvert sur cet appareil : on va plus vite (environ 1,5 s au lieu de 2,7 s), sans la ligne de présentation */
+html[data-splash="short"] .splash {
+  animation: splash-out 0.35s ease-in 1.05s forwards;
+}
+html[data-splash="short"] .splash-tag {
+  display: none;
+}
+html[data-splash="short"] .splash-mark .bubble {
+  animation-duration: 0.45s;
+  animation-delay: 0.05s;
+}
+html[data-splash="short"] .splash-mark .tail {
+  animation-delay: 0.3s;
+}
+html[data-splash="short"] .splash-mark .letter {
+  animation-delay: 0.32s;
+}
+html[data-splash="short"] .splash-glow {
+  animation-duration: 0.9s;
+  animation-delay: 0.05s;
+}
+html[data-splash="short"] .splash-word span {
+  animation-delay: calc(0.5s + var(--i) * 0.035s);
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-tag {
+    animation: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-splash="short"] .splash-mark .bubble,
+  html[data-splash="short"] .splash-mark .tail,
+  html[data-splash="short"] .splash-mark .letter,
+  html[data-splash="short"] .splash-word span {
+    animation: none;
+    opacity: 1;
+  }
+}

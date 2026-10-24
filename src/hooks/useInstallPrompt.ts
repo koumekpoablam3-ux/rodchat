@@ -44,5 +44,5 @@ export function useInstallPrompt() {
     setDeferred(null);
   }, [deferred]);
 
-  return { canInstall: deferred !== null && !installed, iosHint, install };
+  return { canInstall: deferred !== null && !installed, iosHint, install, installed };
 }

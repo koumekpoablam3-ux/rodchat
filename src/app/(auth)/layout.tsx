@@ -74,8 +74,10 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
 
       <main className="flex items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm">
-          <div className="auth-rise mb-8 flex justify-center md:hidden">
+          {/* Téléphone : pas de volet de présentation, alors le logo porte aussi la promesse en une phrase */}
+          <div className="auth-rise mb-8 flex flex-col items-center gap-3 text-center md:hidden">
             <Logo size={52} />
+            <p className="max-w-[17rem] text-[15px] text-muted">Tes discussions, en privé ou en groupe, sur ton téléphone.</p>
           </div>
           {children}
         </div>

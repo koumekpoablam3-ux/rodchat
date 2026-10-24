@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bell, BellOff, Download, EllipsisVertical, LogOut, Settings, Share2, ShieldCheck, Star, UserRound } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { unbindPushSubscription, usePush } from "@/hooks/usePush";
+import { shareInvite } from "@/lib/share-invite";
 import { getSocket } from "@/lib/socket";
 import Avatar from "./Avatar";
 import { useChat } from "./ChatProvider";
@@ -157,23 +158,19 @@ export default function AppMenu() {
             role="menuitem"
             className={itemClass}
             onClick={() => {
-              const url = window.location.origin;
-              if (typeof navigator.share === "function") {
-                setOpen(false);
-                // Menu de partage du téléphone ou de l'ordinateur (WhatsApp, SMS, e-mail…) ; annulé = rien à faire
-                void navigator.share({ title: "Rodchat", text: "Rejoins-moi sur Rodchat :", url }).catch(() => {});
-              } else {
-                void navigator.clipboard
-                  .writeText(`Rejoins-moi sur Rodchat : ${url}`)
-                  .then(() => {
-                    setInviteCopied(true);
-                    setTimeout(() => {
-                      setInviteCopied(false);
-                      setOpen(false);
-                    }, 1400);
-                  })
-                  .catch(() => setOpen(false));
-              }
+              const nativeShare = typeof navigator.share === "function";
+              if (nativeShare) setOpen(false);
+              void shareInvite().then((result) => {
+                if (result === "copied") {
+                  setInviteCopied(true);
+                  setTimeout(() => {
+                    setInviteCopied(false);
+                    setOpen(false);
+                  }, 1400);
+                } else if (!nativeShare) {
+                  setOpen(false);
+                }
+              });
             }}
           >
             <Share2 size={18} aria-hidden="true" />

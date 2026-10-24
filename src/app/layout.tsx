@@ -52,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html:
-              'try{var d=document.documentElement;if(sessionStorage.getItem("rodchat-splash"))d.setAttribute("data-splash","off");if(localStorage.getItem("rodchat-app-lock"))d.setAttribute("data-locked","1")}catch(e){}',
+              'try{var d=document.documentElement;if(sessionStorage.getItem("rodchat-splash"))d.setAttribute("data-splash","off");else if(localStorage.getItem("rodchat-splash-seen"))d.setAttribute("data-splash","short");if(localStorage.getItem("rodchat-app-lock"))d.setAttribute("data-locked","1")}catch(e){}',
           }}
         />
       </head>

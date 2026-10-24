@@ -6,7 +6,7 @@ const WORD = "rodchat";
 
 /**
  * Animation d'introduction au démarrage : la bulle apparaît, le « R » se pose, le nom se déploie, puis l'écran
- * s'efface (environ 2,5 s). Elle ne joue qu'une fois par session : pas de rebelote quand on recharge la page.
+ * s'efface (environ 2,5 s la première fois sur un appareil, 1,5 s ensuite). Elle ne joue qu'une fois par session : pas de rebelote quand on recharge la page.
  * Un toucher ou un clic la ferme tout de suite. Les personnes qui ont réduit les animations en voient une version calme.
  *
  * Elle s'efface aussi toute seule par CSS : si JavaScript tarde ou échoue, elle ne bloque jamais l'écran.
@@ -15,12 +15,15 @@ export default function SplashScreen() {
   const [gone, setGone] = useState(false);
 
   useEffect(() => {
+    // Version courte pour les habitués (l'attribut est posé avant le premier affichage, voir le layout)
+    const short = document.documentElement.getAttribute("data-splash") === "short";
     try {
       sessionStorage.setItem("rodchat-splash", "1");
+      localStorage.setItem("rodchat-splash-seen", "1");
     } catch {
       /* stockage indisponible : l'animation rejouera au prochain chargement, sans conséquence */
     }
-    const timer = setTimeout(() => setGone(true), 2700);
+    const timer = setTimeout(() => setGone(true), short ? 1500 : 2700);
     return () => clearTimeout(timer);
   }, []);
 
@@ -48,6 +51,7 @@ export default function SplashScreen() {
           </span>
         ))}
       </p>
+      <p className="splash-tag">En privé ou en groupe.</p>
     </div>
   );
 }
